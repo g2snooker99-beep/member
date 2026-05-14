@@ -1,246 +1,137 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8" />
-  <title>G2 Add Points</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <link rel="stylesheet" href="./css/style.css" />
-
+  <meta charset="UTF-8"/>
+  <title>G2 Staff – เพิ่มแต้ม</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="stylesheet" href="./css/style.css"/>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <style>
+    .pt-btn{padding:18px 0;border-radius:16px;border:none;background:rgba(45,224,128,0.14);
+      color:#48f08d;font-size:22px;font-weight:900;cursor:pointer;transition:background .15s,transform .12s;}
+    .pt-btn:active{transform:scale(0.92);} .pt-btn:hover{background:rgba(45,224,128,0.28);}
+    .pt-btn:disabled{opacity:.4;pointer-events:none;}
+    #memberCard{display:flex;gap:14px;align-items:center;background:rgba(255,255,255,0.07);
+      border-radius:20px;padding:16px;margin:14px 0;}
+    #memberCard .info p{margin:3px 0;font-size:13px;color:#9fe8c0;}
+    #successMsg{margin-top:12px;padding:14px;border-radius:16px;background:rgba(45,224,128,0.15);
+      color:#b9ffd4;font-weight:700;display:none;font-size:15px;}
+  </style>
 </head>
-
 <body>
-  <!-- STAFF PIN PAGE -->
-  <div id="pinPage" class="page">
-    <div class="card center">
-      <h1>G2 STAFF</h1>
-      <p class="sub">กรอกรหัสพนักงานเพื่อเพิ่มแต้ม</p>
-
-      <input id="staffPin" type="password" placeholder="Staff PIN" inputmode="numeric" />
-
-      <button onclick="loginStaff()">เข้าสู่ระบบ</button>
-
-      <div class="notice">
-        สำหรับพนักงาน G2 เท่านั้น
+<div class="page"><div class="card">
+  <h1 style="font-size:20px;text-align:center;">G2 SNOOKER</h1>
+  <p class="sub" style="text-align:center;">Staff – เพิ่มแต้มสมาชิก</p>
+  <div id="loading" style="text-align:center;padding:30px 0;">กำลังโหลด…</div>
+  <div id="accessDenied" class="hidden" style="text-align:center;color:#ff7070;padding:20px;">⛔ คุณไม่มีสิทธิ์เข้าถึงหน้านี้</div>
+  <div id="content" class="hidden">
+    <div id="searchBox">
+      <p style="color:#9fe8c0;font-size:14px;margin:0 0 8px;">ป้อน qrToken หรือรหัสสมาชิก</p>
+      <input id="tokenInput" placeholder="วางหรือพิมพ์รหัสที่นี่" style="margin-top:0;"/>
+      <button onclick="lookupMember()">🔍 ค้นหาสมาชิก</button>
+      <button class="secondary" onclick="window.location.href='./staff-scan.html'" style="margin-top:8px;">📷 สแกน QR แทน</button>
+    </div>
+    <div id="memberCard" class="hidden">
+      <img id="mAvatar" class="avatar" style="width:54px;height:54px;flex-shrink:0;"/>
+      <div class="info">
+        <b id="mName">–</b>
+        <p id="mMemberId">–</p>
+        <p id="mCurrentPoints" style="color:#ffd166;font-weight:700;">แต้มเดือนนี้: –</p>
       </div>
     </div>
-  </div>
-
-  <!-- ADD POINTS PAGE -->
-  <div id="addPage" class="page hidden">
-    <div class="card center">
-      <h1>เพิ่มแต้ม</h1>
-      <p class="sub">1 ชั่วโมง = 1 แต้ม</p>
-
-      <div id="memberInfo" class="notice">
-        กำลังโหลดข้อมูลสมาชิก...
+    <div id="pointButtons" class="hidden">
+      <p style="color:#9fe8c0;font-size:14px;margin:4px 0 10px;">เลือกจำนวนแต้มที่จะเพิ่ม</p>
+      <div class="point-buttons">
+        <button class="pt-btn" onclick="addPoints(1)">+1</button>
+        <button class="pt-btn" onclick="addPoints(2)">+2</button>
+        <button class="pt-btn" onclick="addPoints(3)">+3</button>
+        <button class="pt-btn" onclick="addPoints(5)">+5</button>
+        <button class="pt-btn" onclick="addPoints(10)">+10</button>
+        <button class="pt-btn" onclick="addPoints(15)">+15</button>
+        <button class="pt-btn" onclick="addPoints(20)">+20</button>
+        <button class="pt-btn" onclick="addPoints(30)">+30</button>
       </div>
-
-      <div class="point-buttons" style="margin-top:16px;">
-        <button onclick="setPoints(1)">+1</button>
-        <button onclick="setPoints(2)">+2</button>
-        <button onclick="setPoints(3)">+3</button>
-        <button onclick="setPoints(5)">+5</button>
-      </div>
-
-      <input id="customPoints" type="number" placeholder="หรือกรอกเอง เช่น 3" />
-      <input id="tableNo" placeholder="โต๊ะ เช่น 5" />
-
-      <button onclick="addPoints()">
-        บันทึกแต้ม
-      </button>
-
-      <button class="secondary" onclick="location.href='./leaderboard.html'">
-        ดู Leaderboard
-      </button>
+      <div id="successMsg"></div>
+      <button class="secondary" onclick="resetForm()" style="margin-top:12px;">🔄 เพิ่มให้สมาชิกคนอื่น</button>
     </div>
   </div>
+</div></div>
+<script src="./js/firebase-config.js"></script>
+<script>
+  const STAFF_LIFF = "2010084269-Mv2yEosd";
+  let staffProfile = null, memberDocId = null, memberData = null;
 
-  <script src="./js/firebase-config.js"></script>
-
-  <script>
-    const STAFF_PIN = "1234";
-
-    const params = new URLSearchParams(window.location.search);
-
-    let qrData = {
-      userId: params.get("userId"),
-      token: params.get("token")
-    };
-
-    let selectedPoints = 0;
-    let member = null;
-
-    function checkStaffSession() {
-      const isStaff = localStorage.getItem("g2StaffAddLogin") === "yes";
-
-      if (isStaff) {
-        document.getElementById("pinPage").classList.add("hidden");
-        document.getElementById("addPage").classList.remove("hidden");
-        loadMember();
-      } else {
-        document.getElementById("pinPage").classList.remove("hidden");
-        document.getElementById("addPage").classList.add("hidden");
-      }
+  async function init() {
+    await liff.init({ liffId: STAFF_LIFF });
+    if (!liff.isLoggedIn()) { liff.login(); return; }
+    staffProfile = await liff.getProfile();
+    const staffSnap = await db.collection("users").doc(staffProfile.userId).get();
+    if (!staffSnap.exists || !["staff","admin"].includes(staffSnap.data().role)) {
+      document.getElementById("loading").classList.add("hidden");
+      document.getElementById("accessDenied").classList.remove("hidden");
+      return;
     }
+    document.getElementById("loading").classList.add("hidden");
+    document.getElementById("content").classList.remove("hidden");
+    const qrToken = new URLSearchParams(window.location.search).get("qrToken");
+    if (qrToken) { document.getElementById("tokenInput").value = qrToken; await lookupMember(); }
+  }
 
-    function loginStaff() {
-      const pin = document.getElementById("staffPin").value.trim();
+  async function lookupMember() {
+    const token = document.getElementById("tokenInput").value.trim();
+    if (!token) { alert("กรุณากรอกรหัส"); return; }
+    let snap = await db.collection("users").where("qrToken","==",token).limit(1).get();
+    if (snap.empty) snap = await db.collection("users").where("memberId","==",token).limit(1).get();
+    if (snap.empty) { alert("ไม่พบสมาชิก"); return; }
+    const doc = snap.docs[0];
+    memberDocId = doc.id; memberData = doc.data();
+    document.getElementById("mAvatar").src           = memberData.pictureUrl || "";
+    document.getElementById("mName").textContent     = memberData.nickname || memberData.displayName;
+    document.getElementById("mMemberId").textContent = "รหัส: " + (memberData.memberId || "");
+    document.getElementById("mCurrentPoints").textContent = "แต้มเดือนนี้: " + (memberData.monthlyPoints || 0);
+    document.getElementById("memberCard").classList.remove("hidden");
+    document.getElementById("pointButtons").classList.remove("hidden");
+    document.getElementById("searchBox").classList.add("hidden");
+  }
 
-      if (pin !== STAFF_PIN) {
-        alert("รหัสพนักงานไม่ถูกต้อง");
-        return;
-      }
+  async function addPoints(amount) {
+    if (!memberDocId) return;
+    document.querySelectorAll(".pt-btn").forEach(b => b.disabled = true);
+    try {
+      const batch = db.batch();
+      batch.update(db.collection("users").doc(memberDocId), {
+        monthlyPoints: firebase.firestore.FieldValue.increment(amount),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      batch.set(db.collection("pointTransactions").doc(), {
+        userId: memberDocId, memberId: memberData.memberId || "",
+        staffId: staffProfile.userId, points: amount, type: "add",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      await batch.commit();
+      memberData.monthlyPoints = (memberData.monthlyPoints || 0) + amount;
+      document.getElementById("mCurrentPoints").textContent = "แต้มเดือนนี้: " + memberData.monthlyPoints;
+      const msg = document.getElementById("successMsg");
+      msg.textContent = "✅ เพิ่ม +" + amount + " แต้มสำเร็จ!  รวม " + memberData.monthlyPoints + " แต้ม";
+      msg.style.display = "block";
+      setTimeout(() => { msg.style.display = "none"; }, 3500);
+    } catch(e) { console.error(e); alert("เกิดข้อผิดพลาด: " + e.message); }
+    finally { document.querySelectorAll(".pt-btn").forEach(b => b.disabled = false); }
+  }
 
-      localStorage.setItem("g2StaffAddLogin", "yes");
-      checkStaffSession();
-    }
+  function resetForm() {
+    memberDocId = memberData = null;
+    document.getElementById("tokenInput").value = "";
+    document.getElementById("memberCard").classList.add("hidden");
+    document.getElementById("pointButtons").classList.add("hidden");
+    document.getElementById("searchBox").classList.remove("hidden");
+    document.getElementById("successMsg").style.display = "none";
+    history.replaceState({}, "", "./staff-add-points.html");
+  }
 
-    async function loadMember() {
-      try {
-        if (!qrData.userId || !qrData.token) {
-          alert("ไม่มีข้อมูลสมาชิกจาก QR กรุณาสแกน QR ลูกค้าใหม่");
-          document.getElementById("memberInfo").innerHTML =
-            "ไม่มีข้อมูลสมาชิกจาก QR";
-          return;
-        }
-
-        const snap = await db.collection("users").doc(qrData.userId).get();
-
-        if (!snap.exists) {
-          alert("ไม่พบสมาชิก");
-          document.getElementById("memberInfo").innerHTML = "ไม่พบสมาชิก";
-          return;
-        }
-
-        member = snap.data();
-
-        if (member.qrToken !== qrData.token) {
-          alert("QR Token ไม่ถูกต้อง");
-          document.getElementById("memberInfo").innerHTML = "QR Token ไม่ถูกต้อง";
-          return;
-        }
-
-        document.getElementById("memberInfo").innerHTML = `
-          <img src="${member.pictureUrl || ""}" class="avatar" />
-          <h2>${member.nickname || member.displayName || "-"}</h2>
-          <p>${member.memberId || "-"}</p>
-          <p>แต้มเดือนนี้: <b>${member.monthlyPoints || 0}</b></p>
-          <p>ชั่วโมงรวม: <b>${member.lifetimeHours || 0}</b></p>
-        `;
-
-      } catch (error) {
-        console.error(error);
-        alert("Load Member Error: " + error.message);
-      }
-    }
-
-    function setPoints(points) {
-      selectedPoints = points;
-      document.getElementById("customPoints").value = points;
-    }
-
-    async function addPoints() {
-      try {
-        if (!member) {
-          alert("ยังโหลดข้อมูลสมาชิกไม่สำเร็จ");
-          return;
-        }
-
-        const points = Number(document.getElementById("customPoints").value || selectedPoints);
-        const tableNo = document.getElementById("tableNo").value.trim();
-
-        if (!points || points <= 0) {
-          alert("กรุณาใส่จำนวนแต้ม");
-          return;
-        }
-
-        if (points > 10) {
-          alert("เพิ่มได้ไม่เกิน 10 แต้มต่อครั้ง");
-          return;
-        }
-
-        const userRef = db.collection("users").doc(member.userId);
-        const notificationId = "noti-" + Date.now();
-
-        await db.runTransaction(async (transaction) => {
-          const freshSnap = await transaction.get(userRef);
-
-          if (!freshSnap.exists) {
-            throw new Error("ไม่พบสมาชิก");
-          }
-
-          const freshUser = freshSnap.data();
-
-          if (freshUser.qrToken !== qrData.token) {
-            throw new Error("QR Token ไม่ถูกต้อง");
-          }
-
-          const beforePoints = freshUser.monthlyPoints || 0;
-          const beforeHours = freshUser.lifetimeHours || 0;
-          const afterPoints = beforePoints + points;
-          const afterHours = beforeHours + points;
-
-          transaction.update(userRef, {
-            monthlyPoints: afterPoints,
-            lifetimeHours: afterHours,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-          });
-
-          const txRef = db.collection("pointTransactions").doc();
-
-          transaction.set(txRef, {
-            userId: freshUser.userId,
-            memberId: freshUser.memberId,
-            displayName: freshUser.nickname || freshUser.displayName || "-",
-            points,
-            type: "ADD_HOURS",
-            tableNo,
-            beforePoints,
-            afterPoints,
-            beforeHours,
-            afterHours,
-            staffName: "staff-pin",
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            createdAtMs: Date.now()
-          });
-
-          const notificationRef = db.collection("latestNotifications").doc(freshUser.userId);
-
-          transaction.set(notificationRef, {
-            notificationId,
-            userId: freshUser.userId,
-            memberId: freshUser.memberId,
-            displayName: freshUser.nickname || freshUser.displayName || "-",
-            points,
-            tableNo,
-            beforePoints,
-            afterPoints,
-            beforeHours,
-            afterHours,
-            message: `คุณได้รับ +${points} แต้ม`,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            createdAtMs: Date.now()
-          });
-        });
-
-        alert(`บันทึก +${points} แต้มสำเร็จ`);
-
-        document.getElementById("customPoints").value = "";
-        document.getElementById("tableNo").value = "";
-        selectedPoints = 0;
-
-        await loadMember();
-
-      } catch (error) {
-        console.error(error);
-        alert("Add Points Error: " + error.message);
-      }
-    }
-
-    checkStaffSession();
-  </script>
+  init().catch(e => { console.error(e); alert("เกิดข้อผิดพลาด"); });
+</script>
 </body>
 </html>

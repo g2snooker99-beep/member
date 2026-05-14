@@ -1,133 +1,52 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8" />
-  <title>G2 Staff Scan</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <link rel="stylesheet" href="./css/style.css" />
-
+  <meta charset="UTF-8"/>
+  <title>G2 Staff – สแกน QR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="stylesheet" href="./css/style.css"/>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>#reader{width:100%;border-radius:16px;overflow:hidden;margin:16px 0;}</style>
 </head>
-
 <body>
-  <!-- STAFF PIN LOGIN -->
-  <div id="pinPage" class="page">
-    <div class="card center">
-      <h1>G2 STAFF</h1>
-      <p class="sub">กรอกรหัสพนักงาน</p>
-
-      <input id="staffPin" type="password" placeholder="Staff PIN" inputmode="numeric" />
-
-      <button onclick="loginStaff()">เข้าสู่ระบบ</button>
-
-      <div class="notice">
-        สำหรับพนักงาน G2 เท่านั้น
-      </div>
-    </div>
+<div class="page"><div class="card center">
+  <h1>G2 SNOOKER</h1>
+  <p class="sub">Staff – สแกน QR สมาชิก</p>
+  <div id="loading" style="padding:40px 0;">กำลังโหลด…</div>
+  <div id="content" class="hidden">
+    <div id="reader"></div>
+    <p id="statusMsg" style="color:#9fe8c0;font-size:14px;min-height:20px;"></p>
+    <button class="secondary" onclick="window.location.href='./staff-add-points.html'">✍️ ป้อนรหัสด้วยตัวเอง</button>
   </div>
-
-  <!-- STAFF SCAN PAGE -->
-  <div id="staffPage" class="page hidden">
-    <div class="card center">
-      <h1>G2 STAFF</h1>
-      <p class="sub">สแกน QR ลูกค้าเพื่อเพิ่มแต้ม</p>
-
-      <button id="scanBtn" onclick="scanMember()" disabled>
-        กำลังโหลด LIFF...
-      </button>
-
-      <button class="secondary" onclick="location.href='./leaderboard.html'">
-        ดู Leaderboard
-      </button>
-
-      <button class="secondary" onclick="logoutStaff()">
-        ออกจากระบบ Staff
-      </button>
-
-      <div id="result" class="notice hidden"></div>
-    </div>
-  </div>
-
-  <script>
-    const STAFF_PIN = "1234";
-    const STAFF_LIFF_ID = "2010084269-Mv2yEosd";
-
-    function checkStaffSession() {
-      const isStaff = localStorage.getItem("g2StaffLogin") === "yes";
-
-      if (isStaff) {
-        document.getElementById("pinPage").classList.add("hidden");
-        document.getElementById("staffPage").classList.remove("hidden");
-        initStaffLiff();
-      } else {
-        document.getElementById("pinPage").classList.remove("hidden");
-        document.getElementById("staffPage").classList.add("hidden");
-      }
+  <div id="accessDenied" class="hidden" style="padding:20px;color:#ff7070;">⛔ คุณไม่มีสิทธิ์เข้าถึงหน้านี้</div>
+</div></div>
+<script src="./js/firebase-config.js"></script>
+<script>
+  const STAFF_LIFF = "2010084269-Mv2yEosd";
+  let scanner = null;
+  async function init() {
+    await liff.init({ liffId: STAFF_LIFF });
+    if (!liff.isLoggedIn()) { liff.login(); return; }
+    const profile = await liff.getProfile();
+    const snap = await db.collection("users").doc(profile.userId).get();
+    if (!snap.exists || !["staff","admin"].includes(snap.data().role)) {
+      document.getElementById("loading").classList.add("hidden");
+      document.getElementById("accessDenied").classList.remove("hidden");
+      return;
     }
-
-    function loginStaff() {
-      const pin = document.getElementById("staffPin").value.trim();
-
-      if (pin !== STAFF_PIN) {
-        alert("รหัสพนักงานไม่ถูกต้อง");
-        return;
-      }
-
-      localStorage.setItem("g2StaffLogin", "yes");
-      checkStaffSession();
-    }
-
-    function logoutStaff() {
-      localStorage.removeItem("g2StaffLogin");
-      window.location.reload();
-    }
-
-    async function initStaffLiff() {
-      try {
-        await liff.init({ liffId: STAFF_LIFF_ID });
-
-        if (!liff.isLoggedIn()) {
-          liff.login();
-          return;
-        }
-
-        document.getElementById("scanBtn").disabled = false;
-        document.getElementById("scanBtn").innerText = "สแกน QR ลูกค้า";
-
-      } catch (error) {
-        console.error("Staff LIFF Error:", error);
-        alert("Staff LIFF Error: " + error.message);
-      }
-    }
-
-    async function scanMember() {
-      try {
-        if (!liff.isApiAvailable("scanCodeV2")) {
-          alert("เครื่องนี้ยังใช้สแกน QR ไม่ได้ กรุณาเปิดผ่าน Staff LIFF บนมือถือ");
-          return;
-        }
-
-        const result = await liff.scanCodeV2();
-        const raw = result.value;
-
-        const qrData = JSON.parse(raw);
-
-        if (qrData.type !== "G2_MEMBER") {
-          alert("QR นี้ไม่ใช่ของสมาชิก G2");
-          return;
-        }
-
-        localStorage.setItem("scanMemberData", JSON.stringify(qrData));
-        window.location.href = "./staff-add-points.html";
-
-      } catch (error) {
-        console.error(error);
-        alert("Scan Error: " + error.message);
-      }
-    }
-
-    checkStaffSession();
-  </script>
+    document.getElementById("loading").classList.add("hidden");
+    document.getElementById("content").classList.remove("hidden");
+    scanner = new Html5QrcodeScanner("reader",{fps:10,qrbox:{width:240,height:240}},false);
+    scanner.render(text => {
+      scanner.clear().catch(()=>{});
+      document.getElementById("statusMsg").textContent = "✅ สแกนสำเร็จ กำลังโหลด…";
+      window.location.href = "./staff-add-points.html?qrToken=" + encodeURIComponent(text);
+    }, ()=>{});
+  }
+  init().catch(e => { console.error(e); alert("เกิดข้อผิดพลาด"); });
+</script>
 </body>
 </html>

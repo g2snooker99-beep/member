@@ -1,190 +1,107 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-  <meta charset="UTF-8" />
-  <title>G2 My QR</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <link rel="stylesheet" href="./css/style.css" />
-
+  <meta charset="UTF-8"/>
+  <title>G2 QR Code</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="stylesheet" href="./css/style.css"/>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
-
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    #pointsDisplay {
+      font-size: 54px; font-weight: 900; color: #48f08d; line-height: 1;
+      transition: transform 0.35s cubic-bezier(.36,1.7,.64,1), color 0.25s;
+    }
+    #pointsDisplay.bump { transform: scale(1.4); color: #b6ff6d; }
+    #notifBanner {
+      margin-top: 14px; padding: 14px 20px; border-radius: 18px;
+      background: rgba(45,224,128,0.18); border: 1px solid rgba(45,224,128,0.4);
+      color: #b9ffd4; font-size: 18px; font-weight: 800;
+      opacity: 0; transform: translateY(10px) scale(0.96);
+      transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none;
+    }
+    #notifBanner.show { opacity: 1; transform: translateY(0) scale(1); }
+    #qrWrap { margin: 16px auto; display: inline-block; background: #fff; padding: 14px; border-radius: 20px; }
+  </style>
 </head>
-
 <body>
-  <div class="page">
-    <div class="card center">
-      <h1>MY QR</h1>
-      <p class="sub">ให้พนักงานสแกนเพื่อเพิ่มแต้ม</p>
-
-      <div id="pointNotification" class="notice hidden" style="
-        background: rgba(45,224,128,0.25);
-        color: #d9ffe7;
-        font-size: 17px;
-        border: 1px solid rgba(45,224,128,0.55);
-      "></div>
-
-      <div style="background:#fff; padding:16px; border-radius:20px; display:inline-block; margin-top:18px;">
-        <canvas id="qrCanvas"></canvas>
+<div class="page">
+  <div class="card center">
+    <h1>G2 SNOOKER</h1>
+    <p class="sub">บัตรสมาชิก</p>
+    <div id="loading" style="padding:40px 0;">กำลังโหลด…</div>
+    <div id="content" class="hidden">
+      <img id="avatar" class="avatar"/>
+      <h2 id="displayName"></h2>
+      <p id="memberId" style="color:#9fe8c0;font-size:13px;margin:0 0 4px;"></p>
+      <p id="rankLabel" style="color:#ffd166;font-size:14px;font-weight:700;margin:0 0 16px;"></p>
+      <div id="qrWrap"><div id="qrcode"></div></div>
+      <p style="color:#5d7a65;font-size:12px;margin:6px 0 20px;">ให้พนักงานสแกน QR นี้เพื่อเพิ่มแต้ม</p>
+      <div style="background:rgba(255,255,255,0.07);border-radius:22px;padding:20px 24px;">
+        <div id="pointsDisplay">0</div>
+        <p style="margin:6px 0 0;color:#9fe8c0;font-size:14px;">แต้มเดือนนี้</p>
       </div>
-
-      <h2 id="name">-</h2>
-      <p id="memberId">-</p>
-      <p id="points">แต้มเดือนนี้: 0</p>
-      <p id="hours">ชั่วโมงรวม: 0</p>
-
-      <button onclick="location.href='./member.html'">กลับ Member Card</button>
-      <button class="secondary" onclick="location.href='./leaderboard.html'">ดู Leaderboard</button>
+      <div id="notifBanner">🎉 ยินดีด้วย!</div>
+      <button class="secondary" onclick="window.location.href='./member.html'" style="margin-top:20px;">← กลับหน้าหลัก</button>
     </div>
   </div>
+</div>
+<script src="./js/firebase-config.js"></script>
+<script>
+  const MEMBER_LIFF = "2010084269-aui1GaWz";
+  let prevPoints = null, qrGenerated = false, notifTimer = null;
 
-  <script src="./js/firebase-config.js"></script>
-  <script src="./js/liff-init.js"></script>
+  async function init() {
+    await liff.init({ liffId: MEMBER_LIFF });
+    if (!liff.isLoggedIn()) { liff.login(); return; }
+    const profile = await liff.getProfile();
+    listenUser(profile.userId);
+  }
 
-  <script>
-    let firstRealtimeLoad = true;
-    let lastMonthlyPoints = null;
-    let lastLifetimeHours = null;
-    let currentUserId = null;
-
-    window.addEventListener("liffReady", async (event) => {
-      try {
-        const profile = event.detail;
-        currentUserId = profile.userId;
-
-        const snap = await db.collection("users").doc(profile.userId).get();
-
-        if (!snap.exists) {
-          window.location.href = "./index.html";
-          return;
-        }
-
-        const user = snap.data();
-
-        renderUser(user);
-        renderQr(user);
-
-        checkPointIncreaseOnOpen(profile.userId, user);
-        listenUserRealtime(profile.userId);
-
-      } catch (error) {
-        console.error(error);
-        alert("QR Error: " + error.message);
-      }
-    });
-
-    function renderUser(user) {
-      document.getElementById("name").innerText =
-        user.nickname || user.displayName || "-";
-
-      document.getElementById("memberId").innerText =
-        user.memberId || "-";
-
-      document.getElementById("points").innerText =
-        "แต้มเดือนนี้: " + (user.monthlyPoints || 0);
-
-      document.getElementById("hours").innerText =
-        "ชั่วโมงรวม: " + (user.lifetimeHours || 0);
-    }
-
-    function renderQr(user) {
-      const qrValue =
-        `https://member-3e17e.web.app/staff-add-points.html?userId=${encodeURIComponent(user.userId)}&token=${encodeURIComponent(user.qrToken)}`;
-
-      new QRious({
-        element: document.getElementById("qrCanvas"),
-        value: qrValue,
-        size: 240,
-        level: "H"
-      });
-    }
-
-    function checkPointIncreaseOnOpen(userId, user) {
-      const currentPoints = user.monthlyPoints || 0;
-      const currentHours = user.lifetimeHours || 0;
-
-      const savedPointsKey = "g2SavedPoints_" + userId;
-      const savedHoursKey = "g2SavedHours_" + userId;
-
-      const oldPointsRaw = localStorage.getItem(savedPointsKey);
-      const oldHoursRaw = localStorage.getItem(savedHoursKey);
-
-      if (oldPointsRaw !== null) {
-        const oldPoints = Number(oldPointsRaw);
-        const addedPoints = currentPoints - oldPoints;
-
-        if (addedPoints > 0) {
-          showPointNotification(addedPoints, currentPoints, currentHours);
+  function listenUser(userId) {
+    db.collection("users").doc(userId).onSnapshot(snap => {
+      if (!snap.exists) { alert("ไม่พบข้อมูลสมาชิก"); window.location.href="./index.html"; return; }
+      const d = snap.data();
+      const newPoints = d.monthlyPoints || 0;
+      if (prevPoints === null) {
+        document.getElementById("loading").classList.add("hidden");
+        document.getElementById("content").classList.remove("hidden");
+        document.getElementById("avatar").src              = d.pictureUrl || "";
+        document.getElementById("displayName").textContent = d.nickname || d.displayName;
+        document.getElementById("memberId").textContent    = "รหัสสมาชิก: " + (d.memberId || "");
+        document.getElementById("rankLabel").textContent   = "🏅 " + (d.currentRank || "Rookie");
+        if (!qrGenerated) {
+          new QRCode(document.getElementById("qrcode"), {
+            text: d.qrToken || userId, width: 200, height: 200,
+            colorDark: "#0a120c", colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+          });
+          qrGenerated = true;
         }
       }
-
-      localStorage.setItem(savedPointsKey, String(currentPoints));
-      localStorage.setItem(savedHoursKey, String(currentHours));
-
-      lastMonthlyPoints = currentPoints;
-      lastLifetimeHours = currentHours;
-    }
-
-    function listenUserRealtime(userId) {
-      db.collection("users").doc(userId).onSnapshot((snap) => {
-        if (!snap.exists) return;
-
-        const user = snap.data();
-
-        const currentPoints = user.monthlyPoints || 0;
-        const currentHours = user.lifetimeHours || 0;
-
-        document.getElementById("points").innerText =
-          "แต้มเดือนนี้: " + currentPoints;
-
-        document.getElementById("hours").innerText =
-          "ชั่วโมงรวม: " + currentHours;
-
-        if (firstRealtimeLoad) {
-          firstRealtimeLoad = false;
-          lastMonthlyPoints = currentPoints;
-          lastLifetimeHours = currentHours;
-          return;
-        }
-
-        const addedPoints = currentPoints - lastMonthlyPoints;
-
-        if (addedPoints > 0) {
-          showPointNotification(addedPoints, currentPoints, currentHours);
-        }
-
-        localStorage.setItem("g2SavedPoints_" + userId, String(currentPoints));
-        localStorage.setItem("g2SavedHours_" + userId, String(currentHours));
-
-        lastMonthlyPoints = currentPoints;
-        lastLifetimeHours = currentHours;
-      }, (error) => {
-        console.error("Realtime Error:", error);
-        alert("Realtime Error: " + error.message);
-      });
-    }
-
-    function showPointNotification(addedPoints, totalPoints, totalHours) {
-      const box = document.getElementById("pointNotification");
-
-      box.classList.remove("hidden");
-      box.innerHTML = `
-        🎉 <b>แต้มของคุณถูกเพิ่มแล้ว +${addedPoints}</b><br>
-        แต้มเดือนนี้: ${totalPoints}<br>
-        ชั่วโมงสะสมรวม: ${totalHours}
-      `;
-
-      if (navigator.vibrate) {
-        navigator.vibrate([150, 80, 150]);
+      document.getElementById("pointsDisplay").textContent = newPoints;
+      if (prevPoints !== null && newPoints > prevPoints) {
+        showNotif("🎉 ได้รับ +" + (newPoints - prevPoints) + " แต้ม! ยินดีด้วย!");
+        bumpCounter();
       }
+      prevPoints = newPoints;
+    }, err => console.error("onSnapshot error:", err));
+  }
 
-      setTimeout(() => {
-        box.classList.add("hidden");
-      }, 12000);
-    }
-  </script>
+  function showNotif(msg) {
+    const el = document.getElementById("notifBanner");
+    el.textContent = msg; el.classList.add("show");
+    clearTimeout(notifTimer);
+    notifTimer = setTimeout(() => el.classList.remove("show"), 4500);
+  }
+  function bumpCounter() {
+    const el = document.getElementById("pointsDisplay");
+    el.classList.remove("bump"); void el.offsetWidth;
+    el.classList.add("bump"); setTimeout(() => el.classList.remove("bump"), 400);
+  }
+  init().catch(e => { console.error(e); alert("เกิดข้อผิดพลาด"); });
+</script>
 </body>
 </html>
