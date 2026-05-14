@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <title>G2 Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="stylesheet" href="./css/style.css" />
+
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+
+<body>
+  <!-- PIN LOGIN -->
+  <div id="pinPage" class="page">
+    <div class="card center">
+      <h1>G2 ADMIN</h1>
+      <p class="sub">กรอกรหัสเพื่อเข้าใช้งาน</p>
+
+      <input id="adminPin" type="password" placeholder="Admin PIN" inputmode="numeric" />
+
+      <button onclick="loginAdmin()">เข้าสู่ระบบ</button>
+
+      <div class="notice">
+        สำหรับเจ้าของร้าน / ผู้ดูแลระบบเท่านั้น
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN PAGE -->
+  <div id="adminPage" class="page hidden">
+    <div class="card">
+      <h1>G2 ADMIN</h1>
+      <p class="sub">Season Control / Top 3 แจกเสื้อ</p>
+
+      <button class="secondary" onclick="logoutAdmin()">
+        ออกจากระบบ Admin
+      </button>
+
+      <div class="notice">
+        หน้านี้ใช้สำหรับปิดเดือนและรีเซ็ตแต้มรายเดือน<br>
+        <b>monthlyPoints</b> จะรีเป็น 0<br>
+        <b>lifetimeHours</b> จะไม่หาย
+      </div>
+
+      <h2 style="margin-top:22px;">🏆 Top 3 เดือนนี้</h2>
+      <div id="top3Box">กำลังโหลด Top 3...</div>
+
+      <h2 style="margin-top:22px;">สมาชิกทั้งหมด</h2>
+      <div id="memberList">กำลังโหลดสมาชิก...</div>
+
+      <div class="notice" style="margin-top:22px; background:rgba(255, 80, 80, 0.12); color:#ffd0d0;">
+        <b>Reset Season</b><br>
+        ใช้ตอนสิ้นเดือนเท่านั้น ระบบจะรีเซ็ตแต้มเดือนนี้ของทุกคนเป็น 0
+      </div>
+
+      <input id="confirmText" placeholder="พิมพ์ RESET เพื่อยืนยัน" />
+
+      <button onclick="resetSeason()" style="background:linear-gradient(135deg,#ff4d4d,#ffb86b);">
+        Reset แต้มเดือนใหม่
+      </button>
+
+      <button class="secondary" onclick="location.href='./leaderboard.html'">
+        ดู Leaderboard
+      </button>
+    </div>
+  </div>
+
+  <script src="./js/firebase-config.js"></script>
+
+  <script>
+    const ADMIN_PIN = "9999";
+    let allMembers = [];
+
+    function checkAdminSession() {
+      const isAdmin = localStorage.getItem("g2AdminLogin") === "yes";
+
+      if (isAdmin) {
+        document.getElementById("pinPage").classList.add("hidden");
+        document.getElementById("adminPage").classList.remove("hidden");
+        loadAdminData();
+      } else {
+        document.getElementById("pinPage").classList.remove("hidden");
+        document.getElementById("adminPage").classList.add("hidden");
+      }
+    }
+
+    function loginAdmin() {
+      const pin = document.getElementById("adminPin").value.trim();
+
+      if (pin !== ADMIN_PIN) {
+        alert("รหัสไม่ถูกต้อง");
+        return;
+      }
+
+      localStorage.setItem("g2AdminLogin", "yes");
+      checkAdminSession();
+    }
+
+    function logoutAdmin() {
+      localStorage.removeItem("g2AdminLogin");
+      window.location.reload();
+    }
+
+    async function loadAdminData() {
+      const top3Box = document.getElementById("top3Box");
+      const memberList = document.getElementById("memberList");
+
+      try {
+        const snap = await db.collection("users")
+          .orderBy("monthlyPoints", "desc")
+          .get();
+
+        allMembers = [];
+
+        snap.forEach(doc => {
+          const user = doc.data();
+
+          if (user.role === "member") {
+            allMembers.push({
+              id: doc.id,
+              ...user
+            });
+          }
+        });
+
+        renderTop3();
+        renderMemberList();
+
+      } catch (error) {
+        console.error(error);
+        top3Box.innerHTML = `<div class="notice">Admin Error: ${error.message}</div>`;
+        memberList.innerHTML = "";
+      }
+    }
+
+    function renderTop3() {
+      const top3Box = document.getElementById("top3Box");
+      const top3 = allMembers.slice(0, 3);
+
+      if (top3.length === 0) {
+        top3Box.innerHTML = `<div class="notice">ยังไม่มีสมาชิก</div>`;
+        return;
+      }
+
+      let html = "";
+
+      top3.forEach((u, index) => {
+        const medal = index === 0 ? "🥇" : index === 1 ? "🥈" : "🥉";
+        const title = index === 0 ? "Champion" : "Top Rank";
+
+        html += `
+          <div class="leader-row top3">
+            <span>${medal}</span>
+            <img src="${u.pictureUrl || ""}" />
+            <div>
+              <b>${u.nickname || u.displayName || "-"}</b>
+              <p>${u.memberId || "-"} • ${title}</p>
+            </div>
+            <strong>${u.monthlyPoints || 0}</strong>
+          </div>
+        `;
+      });
+
+      top3Box.innerHTML = html;
+    }
+
+    function renderMemberList() {
+      const memberList = document.getElementById("memberList");
+
+      if (allMembers.length === 0) {
+        memberList.innerHTML = `<div class="notice">ยังไม่มีสมาชิก</div>`;
+        return;
+      }
+
+      let html = "";
+
+      allMembers.forEach((u, index) => {
+        html += `
+          <div class="leader-row">
+            <span>#${index + 1}</span>
+            <img src="${u.pictureUrl || ""}" />
+            <div>
+              <b>${u.nickname || u.displayName || "-"}</b>
+              <p>${u.memberId || "-"} / รวม ${u.lifetimeHours || 0} ชม.</p>
+            </div>
+            <strong>${u.monthlyPoints || 0}</strong>
+          </div>
+        `;
+      });
+
+      memberList.innerHTML = html;
+    }
+
+    async function saveSeasonWinners() {
+      const now = new Date();
+      const seasonId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+      const top3 = allMembers.slice(0, 3);
+
+      const seasonRef = db.collection("seasonResults").doc(seasonId);
+
+      await seasonRef.set({
+        seasonId,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        winners: top3.map((u, index) => ({
+          rank: index + 1,
+          userId: u.userId,
+          memberId: u.memberId,
+          displayName: u.nickname || u.displayName || "-",
+          monthlyPoints: u.monthlyPoints || 0,
+          reward: index === 0 ? "Champion Jersey" : "Top Rank Jersey"
+        }))
+      });
+    }
+
+    async function resetSeason() {
+      const confirmText = document.getElementById("confirmText").value.trim();
+
+      if (confirmText !== "RESET") {
+        alert("กรุณาพิมพ์ RESET เพื่อยืนยัน");
+        return;
+      }
+
+      if (!confirm("ยืนยันรีเซ็ตแต้มเดือนนี้ทั้งหมด?")) {
+        return;
+      }
+
+      try {
+        await saveSeasonWinners();
+
+        const batch = db.batch();
+
+        allMembers.forEach(user => {
+          const userRef = db.collection("users").doc(user.id);
+
+          batch.update(userRef, {
+            monthlyPoints: 0,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        });
+
+        await batch.commit();
+
+        alert("Reset Season สำเร็จแล้ว");
+        window.location.reload();
+
+      } catch (error) {
+        console.error(error);
+        alert("Reset Error: " + error.message);
+      }
+    }
+
+    checkAdminSession();
+  </script>
+</body>
+</html>

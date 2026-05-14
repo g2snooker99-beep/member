@@ -1,4 +1,4 @@
-const LIFF_ID = "YOUR_LIFF_ID";
+const LIFF_ID = "2010084269-aui1GaWz";
 
 let lineProfile = null;
 
@@ -19,7 +19,7 @@ async function initLiff() {
 
   } catch (error) {
     console.error("LIFF init error:", error);
-    alert("เปิดระบบ LINE ไม่สำเร็จ");
+    alert("LIFF Error: " + error.message);
   }
 }
 

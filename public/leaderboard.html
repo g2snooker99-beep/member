@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <title>G2 Leaderboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="stylesheet" href="./css/style.css" />
+
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+
+<body>
+  <div class="page">
+    <div class="card">
+      <h1>G2 TOP HOURS</h1>
+      <p class="sub">Top 3 รับเสื้อทุกเดือน</p>
+
+      <div class="notice">
+        1 ชั่วโมง = 1 แต้ม / รีเซ็ตอันดับทุกเดือน
+      </div>
+
+      <div id="leaderboard" style="margin-top:16px;">
+        กำลังโหลด Leaderboard...
+      </div>
+
+      <button onclick="location.href='./member.html'">กลับ Member Card</button>
+    </div>
+  </div>
+
+  <script src="./js/firebase-config.js"></script>
+
+  <script>
+    async function loadLeaderboard() {
+      const box = document.getElementById("leaderboard");
+
+      try {
+        const snap = await db.collection("users")
+  .orderBy("monthlyPoints", "desc")
+  .limit(20)
+  .get();
+
+        if (snap.empty) {
+          box.innerHTML = `
+            <div class="notice">
+              ยังไม่มีสมาชิกใน Leaderboard
+            </div>
+          `;
+          return;
+        }
+
+        let html = "";
+        let rank = 1;
+
+        snap.forEach(doc => {
+          const u = doc.data();
+
+          const medal =
+            rank === 1 ? "🥇" :
+            rank === 2 ? "🥈" :
+            rank === 3 ? "🥉" :
+            "#" + rank;
+
+          html += `
+            <div class="leader-row ${rank <= 3 ? "top3" : ""}">
+              <span>${medal}</span>
+              <img src="${u.pictureUrl || ""}" />
+              <div>
+                <b>${u.nickname || u.displayName || "-"}</b>
+                <p>${u.memberId || "-"}</p>
+              </div>
+              <strong>${u.monthlyPoints || 0}</strong>
+            </div>
+          `;
+
+          rank++;
+        });
+
+        box.innerHTML = html;
+
+      } catch (error) {
+        console.error(error);
+        box.innerHTML = `
+          <div class="notice">
+            Leaderboard Error: ${error.message}
+          </div>
+        `;
+      }
+    }
+
+    loadLeaderboard();
+  </script>
+</body>
+</html>

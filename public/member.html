@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <title>G2 Member Card</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="stylesheet" href="./css/style.css" />
+
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+
+<body>
+  <div class="page">
+    <div class="member-card">
+      <div class="top">
+        <div>
+          <h1>G2 MEMBER</h1>
+          <p>Top Hours Challenge</p>
+        </div>
+        <span id="rankBadge">Rookie</span>
+      </div>
+
+      <div class="profile">
+        <img id="avatar" class="avatar" />
+        <div>
+          <h2 id="name">-</h2>
+          <p id="memberId">-</p>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div>
+          <b id="monthlyPoints">0</b>
+          <span>แต้มเดือนนี้</span>
+        </div>
+        <div>
+          <b id="lifetimeHours">0</b>
+          <span>ชั่วโมงรวม</span>
+        </div>
+      </div>
+
+      <div class="notice" id="rankNotice">
+        Top 3 ประจำเดือน รับเสื้อ G2 Limited
+      </div>
+
+      <div class="notice hidden" id="pointNotification"></div>
+
+      <button onclick="location.href='./qr.html'">เปิด QR ของฉัน</button>
+      <button class="secondary" onclick="location.href='./leaderboard.html'">ดู Leaderboard</button>
+    </div>
+  </div>
+
+  <script src="./js/firebase-config.js"></script>
+  <script src="./js/liff-init.js"></script>
+
+  <script>
+    window.addEventListener("liffReady", async (event) => {
+      try {
+        const profile = event.detail;
+        const snap = await db.collection("users").doc(profile.userId).get();
+
+        if (!snap.exists) {
+          window.location.href = "./index.html";
+          return;
+        }
+
+        const user = snap.data();
+
+        document.getElementById("avatar").src = user.pictureUrl || "";
+        document.getElementById("name").innerText = user.nickname || user.displayName || "-";
+        document.getElementById("memberId").innerText = user.memberId || "-";
+        document.getElementById("rankBadge").innerText = user.currentRank || "Rookie";
+        document.getElementById("monthlyPoints").innerText = user.monthlyPoints || 0;
+        document.getElementById("lifetimeHours").innerText = user.lifetimeHours || 0;
+        await loadLatestNotification(profile.userId);
+      } catch (error) {
+        console.error(error);
+        alert("Member Error: " + error.message);
+      }
+    });
+
+async function loadLatestNotification(userId) {
+  try {
+    const snap = await db.collection("latestNotifications").doc(userId).get();
+
+    if (!snap.exists) return;
+
+    const n = snap.data();
+
+    if (n.isRead === true) return;
+
+    const box = document.getElementById("pointNotification");
+
+    box.classList.remove("hidden");
+    box.innerHTML = `
+      🎉 <b>${n.message}</b><br>
+      แต้มเดือนนี้: ${n.afterPoints}<br>
+      ชั่วโมงสะสมรวม: ${n.lifetimeHours}
+    `;
+
+    await db.collection("latestNotifications").doc(userId).update({
+      isRead: true
+    });
+
+  } catch (error) {
+    console.error("Notification Error:", error);
+  }
+}
+
+  </script>
+</body>
+</html>

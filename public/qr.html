@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <title>G2 My QR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="stylesheet" href="./css/style.css" />
+
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+
+<body>
+  <div class="page">
+    <div class="card center">
+      <h1>MY QR</h1>
+      <p class="sub">ให้พนักงานสแกนเพื่อเพิ่มแต้ม</p>
+
+      <div id="pointNotification" class="notice hidden" style="
+        background: rgba(45,224,128,0.25);
+        color: #d9ffe7;
+        font-size: 17px;
+        border: 1px solid rgba(45,224,128,0.55);
+      "></div>
+
+      <div style="background:#fff; padding:16px; border-radius:20px; display:inline-block; margin-top:18px;">
+        <canvas id="qrCanvas"></canvas>
+      </div>
+
+      <h2 id="name">-</h2>
+      <p id="memberId">-</p>
+      <p id="points">แต้มเดือนนี้: 0</p>
+      <p id="hours">ชั่วโมงรวม: 0</p>
+
+      <button onclick="location.href='./member.html'">กลับ Member Card</button>
+      <button class="secondary" onclick="location.href='./leaderboard.html'">ดู Leaderboard</button>
+    </div>
+  </div>
+
+  <script src="./js/firebase-config.js"></script>
+  <script src="./js/liff-init.js"></script>
+
+  <script>
+    let firstRealtimeLoad = true;
+    let lastMonthlyPoints = null;
+    let lastLifetimeHours = null;
+    let currentUserId = null;
+
+    window.addEventListener("liffReady", async (event) => {
+      try {
+        const profile = event.detail;
+        currentUserId = profile.userId;
+
+        const snap = await db.collection("users").doc(profile.userId).get();
+
+        if (!snap.exists) {
+          window.location.href = "./index.html";
+          return;
+        }
+
+        const user = snap.data();
+
+        renderUser(user);
+        renderQr(user);
+
+        checkPointIncreaseOnOpen(profile.userId, user);
+        listenUserRealtime(profile.userId);
+
+      } catch (error) {
+        console.error(error);
+        alert("QR Error: " + error.message);
+      }
+    });
+
+    function renderUser(user) {
+      document.getElementById("name").innerText =
+        user.nickname || user.displayName || "-";
+
+      document.getElementById("memberId").innerText =
+        user.memberId || "-";
+
+      document.getElementById("points").innerText =
+        "แต้มเดือนนี้: " + (user.monthlyPoints || 0);
+
+      document.getElementById("hours").innerText =
+        "ชั่วโมงรวม: " + (user.lifetimeHours || 0);
+    }
+
+    function renderQr(user) {
+      const qrValue =
+        `https://member-3e17e.web.app/staff-add-points.html?userId=${encodeURIComponent(user.userId)}&token=${encodeURIComponent(user.qrToken)}`;
+
+      new QRious({
+        element: document.getElementById("qrCanvas"),
+        value: qrValue,
+        size: 240,
+        level: "H"
+      });
+    }
+
+    function checkPointIncreaseOnOpen(userId, user) {
+      const currentPoints = user.monthlyPoints || 0;
+      const currentHours = user.lifetimeHours || 0;
+
+      const savedPointsKey = "g2SavedPoints_" + userId;
+      const savedHoursKey = "g2SavedHours_" + userId;
+
+      const oldPointsRaw = localStorage.getItem(savedPointsKey);
+      const oldHoursRaw = localStorage.getItem(savedHoursKey);
+
+      if (oldPointsRaw !== null) {
+        const oldPoints = Number(oldPointsRaw);
+        const addedPoints = currentPoints - oldPoints;
+
+        if (addedPoints > 0) {
+          showPointNotification(addedPoints, currentPoints, currentHours);
+        }
+      }
+
+      localStorage.setItem(savedPointsKey, String(currentPoints));
+      localStorage.setItem(savedHoursKey, String(currentHours));
+
+      lastMonthlyPoints = currentPoints;
+      lastLifetimeHours = currentHours;
+    }
+
+    function listenUserRealtime(userId) {
+      db.collection("users").doc(userId).onSnapshot((snap) => {
+        if (!snap.exists) return;
+
+        const user = snap.data();
+
+        const currentPoints = user.monthlyPoints || 0;
+        const currentHours = user.lifetimeHours || 0;
+
+        document.getElementById("points").innerText =
+          "แต้มเดือนนี้: " + currentPoints;
+
+        document.getElementById("hours").innerText =
+          "ชั่วโมงรวม: " + currentHours;
+
+        if (firstRealtimeLoad) {
+          firstRealtimeLoad = false;
+          lastMonthlyPoints = currentPoints;
+          lastLifetimeHours = currentHours;
+          return;
+        }
+
+        const addedPoints = currentPoints - lastMonthlyPoints;
+
+        if (addedPoints > 0) {
+          showPointNotification(addedPoints, currentPoints, currentHours);
+        }
+
+        localStorage.setItem("g2SavedPoints_" + userId, String(currentPoints));
+        localStorage.setItem("g2SavedHours_" + userId, String(currentHours));
+
+        lastMonthlyPoints = currentPoints;
+        lastLifetimeHours = currentHours;
+      }, (error) => {
+        console.error("Realtime Error:", error);
+        alert("Realtime Error: " + error.message);
+      });
+    }
+
+    function showPointNotification(addedPoints, totalPoints, totalHours) {
+      const box = document.getElementById("pointNotification");
+
+      box.classList.remove("hidden");
+      box.innerHTML = `
+        🎉 <b>แต้มของคุณถูกเพิ่มแล้ว +${addedPoints}</b><br>
+        แต้มเดือนนี้: ${totalPoints}<br>
+        ชั่วโมงสะสมรวม: ${totalHours}
+      `;
+
+      if (navigator.vibrate) {
+        navigator.vibrate([150, 80, 150]);
+      }
+
+      setTimeout(() => {
+        box.classList.add("hidden");
+      }, 12000);
+    }
+  </script>
+</body>
+</html>
