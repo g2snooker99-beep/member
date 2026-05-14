@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <title>G2 Member</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="stylesheet" href="./css/style.css" />
+
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+
+<body>
+  <div class="page">
+    <div class="card center">
+      <h1>G2 SNOOKER</h1>
+      <p class="sub">LINE Member</p>
+
+      <div id="loading">กำลังโหลดข้อมูล...</div>
+
+      <div id="registerBox" class="hidden">
+        <img id="profileImage" class="avatar" />
+        <h2 id="lineName"></h2>
+
+        <input id="nickname" placeholder="ชื่อเล่น" />
+        <input id="phone" placeholder="เบอร์โทร" inputmode="tel" />
+
+        <button onclick="registerMember()">สมัครสมาชิก</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./js/firebase-config.js"></script>
+  <script src="./js/liff-init.js"></script>
+  <script src="./js/member.js"></script>
+</body>
+</html>
