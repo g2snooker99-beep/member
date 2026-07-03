@@ -8,6 +8,7 @@
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-functions-compat.js"></script>
   <style>
     .pt-btn{padding:18px 0;border-radius:16px;border:none;background:rgba(45,224,128,0.14);
       color:#48f08d;font-size:22px;font-weight:900;cursor:pointer;transition:background .15s,transform .12s;}
@@ -28,10 +29,9 @@
   <div id="accessDenied" class="hidden" style="text-align:center;color:#ff7070;padding:20px;">⛔ คุณไม่มีสิทธิ์เข้าถึงหน้านี้</div>
   <div id="content" class="hidden">
     <div id="searchBox">
-      <p style="color:#9fe8c0;font-size:14px;margin:0 0 8px;">ป้อน qrToken หรือรหัสสมาชิก</p>
+      <p style="color:#9fe8c0;font-size:14px;margin:0 0 8px;">สแกน QR ลูกค้าผ่าน LINE แล้วระบบจะค้นหาให้อัตโนมัติ หรือพิมพ์รหัสเองได้</p>
       <input id="tokenInput" placeholder="วางหรือพิมพ์รหัสที่นี่" style="margin-top:0;"/>
       <button onclick="lookupMember()">🔍 ค้นหาสมาชิก</button>
-      <button class="secondary" onclick="window.location.href='./staff-scan.html'" style="margin-top:8px;">📷 สแกน QR แทน</button>
     </div>
     <div id="memberCard" class="hidden">
       <img id="mAvatar" class="avatar" style="width:54px;height:54px;flex-shrink:0;"/>
@@ -54,6 +54,15 @@
         <button class="pt-btn" onclick="addPoints(30)">+30</button>
       </div>
       <div id="successMsg"></div>
+
+    <div id="nextActions" class="hidden" style="margin-top:16px;">
+      <button onclick="openLineScanner()" style="background:#00c300;color:#fff;">
+        📷 ปิดหน้านี้เพื่อสแกนคนถัดไป
+      </button>
+      <button onclick="resetForm()" class="secondary" style="margin-top:8px;">
+        ✍️ ป้อนรหัสเอง
+      </button>
+    </div>
       <button class="secondary" onclick="resetForm()" style="margin-top:12px;">🔄 เพิ่มให้สมาชิกคนอื่น</button>
     </div>
   </div>
@@ -61,6 +70,8 @@
 <script src="./js/firebase-config.js"></script>
 <script>
   const STAFF_LIFF = "2010084269-Mv2yEosd";
+  const cloudFunctions = firebase.app().functions("asia-southeast1");
+  const sendPointNotification = cloudFunctions.httpsCallable("sendPointNotification");
   let staffProfile = null, memberDocId = null, memberData = null;
 
   async function init() {
@@ -111,17 +122,55 @@
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
       await batch.commit();
+
+      try {
+        await sendPointNotification({
+          userId: memberDocId,
+          addedPoints: amount
+        });
+        console.log("LINE notification sent");
+      } catch (notifyError) {
+        console.error("LINE notification error:", notifyError);
+      }
+
       memberData.monthlyPoints = (memberData.monthlyPoints || 0) + amount;
       document.getElementById("mCurrentPoints").textContent = "แต้มเดือนนี้: " + memberData.monthlyPoints;
       const msg = document.getElementById("successMsg");
-      msg.textContent = "✅ เพิ่ม +" + amount + " แต้มสำเร็จ!  รวม " + memberData.monthlyPoints + " แต้ม";
+      msg.innerHTML = `
+        ✅ เพิ่ม +${amount} แต้มสำเร็จ! รวม ${memberData.monthlyPoints} แต้ม
+        <div style="margin-top:14px;">
+          <button onclick="window.location.href='line://nv/QRCodeReader'" style="background:#00c300;color:#fff;">
+            📷 ปิดหน้านี้เพื่อสแกนคนถัดไป
+          </button>
+          <button onclick="resetForm()" class="secondary" style="margin-top:8px;">
+            ✍️ ป้อนรหัสเอง
+          </button>
+        </div>
+      `;
       msg.style.display = "block";
-      setTimeout(() => { msg.style.display = "none"; }, 3500);
     } catch(e) { console.error(e); alert("เกิดข้อผิดพลาด: " + e.message); }
     finally { document.querySelectorAll(".pt-btn").forEach(b => b.disabled = false); }
   }
 
-  function resetForm() {
+  function openLineScanner() {
+      
+      try {
+        if (typeof liff !== "undefined" && liff.closeWindow) {
+          liff.closeWindow();
+          return;
+        }
+      } catch (e) {}
+
+      alert("กรุณากด X มุมขวาบน เพื่อกลับไปที่ LINE แล้วสแกน QR ลูกค้าคนถัดไป");
+    
+    }
+
+    function showNextActions() {
+      const box = document.getElementById("nextActions");
+      if (box) box.classList.remove("hidden");
+    }
+
+    function resetForm() {
     memberDocId = memberData = null;
     document.getElementById("tokenInput").value = "";
     document.getElementById("memberCard").classList.add("hidden");

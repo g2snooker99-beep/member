@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>เพิ่ม Staff - G2 Snooker</title>
+
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <script src="./js/firebase-config.js"></script>
+
+  <style>
+    body { margin:0; background:#111; color:white; font-family:Arial,sans-serif; padding:20px; }
+    .box { max-width:420px; margin:50px auto; background:#1f1f1f; border-radius:18px; padding:22px; text-align:center; }
+    h1 { color:#d4af37; font-size:24px; }
+    img { width:90px; height:90px; border-radius:50%; object-fit:cover; border:3px solid #d4af37; display:none; margin:15px auto; }
+    input { width:100%; box-sizing:border-box; padding:14px; border:none; border-radius:12px; font-size:18px; text-align:center; margin-top:12px; }
+    button { width:100%; padding:14px; border:none; border-radius:12px; margin-top:12px; background:#d4af37; color:#111; font-weight:bold; font-size:18px; }
+    .status { margin-top:16px; line-height:1.6; }
+    .ok { color:#70ff8a; font-weight:bold; }
+    .err { color:#ff7777; font-weight:bold; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>เพิ่มสิทธิ์พนักงาน</h1>
+    <div id="status" class="status">กำลังโหลด LINE...</div>
+    <img id="picture">
+    <div id="name"></div>
+
+    <div id="form" style="display:none;">
+      <input id="pin" type="password" placeholder="ใส่รหัสพนักงาน">
+      <button onclick="saveStaff()">ยืนยันเป็น Staff</button>
+    </div>
+  </div>
+
+  <script>
+    const LIFF_ID = "2010084269-aui1GaWz";
+    const STAFF_PIN = "2026";
+    let profile = null;
+
+    async function init() {
+      try {
+        await liff.init({ liffId: LIFF_ID });
+
+        if (!liff.isLoggedIn()) {
+          liff.login();
+          return;
+        }
+
+        profile = await liff.getProfile();
+
+        document.getElementById("status").textContent = "เข้าสู่ระบบ LINE สำเร็จ";
+        document.getElementById("name").textContent = profile.displayName || "";
+
+        if (profile.pictureUrl) {
+          document.getElementById("picture").src = profile.pictureUrl;
+          document.getElementById("picture").style.display = "block";
+        }
+
+        document.getElementById("form").style.display = "block";
+      } catch (error) {
+        document.getElementById("status").innerHTML =
+          '<span class="err">โหลด LINE ไม่สำเร็จ: ' + error.message + '</span>';
+      }
+    }
+
+    async function saveStaff() {
+      const pin = document.getElementById("pin").value.trim();
+      const status = document.getElementById("status");
+
+      if (pin !== STAFF_PIN) {
+        status.innerHTML = '<span class="err">รหัสพนักงานไม่ถูกต้อง</span>';
+        return;
+      }
+
+      if (!profile || !profile.userId) {
+        status.innerHTML = '<span class="err">ไม่พบข้อมูล LINE</span>';
+        return;
+      }
+
+      try {
+        status.textContent = "กำลังบันทึกข้อมูล...";
+
+        const userRef = db.collection("users").doc(profile.userId);
+        const snap = await userRef.get();
+
+        const data = {
+          lineUserId: profile.userId,
+          displayName: profile.displayName || "",
+          pictureUrl: profile.pictureUrl || "",
+          searchName: String(profile.displayName || "").trim().toLowerCase(),
+          role: "staff",
+          updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
+        if (snap.exists) {
+          await userRef.update(data);
+        } else {
+          await userRef.set({
+            ...data,
+            memberId: "STAFF-" + profile.userId.slice(-6).toUpperCase(),
+            monthlyPoints: 0,
+            lifetimeHours: 0,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        }
+
+        status.innerHTML =
+          '<span class="ok">สำเร็จ! บัญชีนี้เป็น Staff แล้ว<br>ใช้สแกนเพิ่มแต้มได้เลย</span>';
+      } catch (error) {
+        status.innerHTML =
+          '<span class="err">บันทึกไม่สำเร็จ: ' + error.message + '</span>';
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
