@@ -69,108 +69,225 @@
 </div></div>
 <script src="./js/firebase-config.js"></script>
 <script>
+  window.addEventListener('error', function (e) {
+    console.error('Uncaught error before init:', e.error || e.message);
+    var loading = document.getElementById('loading');
+    if (loading) loading.textContent = 'โหลดไม่สำเร็จ กรุณากดรีเฟรชหน้านี้ใหม่';
+  });
+
   const STAFF_LIFF = "2010084269-Mv2yEosd";
-  const cloudFunctions = firebase.app().functions("asia-southeast1");
-  const sendPointNotification = cloudFunctions.httpsCallable("sendPointNotification");
+  let sendPointNotification = null;
+  try {
+    const cloudFunctions = firebase.app().functions("asia-southeast1");
+    sendPointNotification = cloudFunctions.httpsCallable("sendPointNotification");
+  } catch (e) {
+    console.error("Cloud Functions init failed:", e);
+  }
   let staffProfile = null, memberDocId = null, memberData = null;
 
-  async function init() {
-    await liff.init({ liffId: STAFF_LIFF });
-    if (!liff.isLoggedIn()) { liff.login(); return; }
-    staffProfile = await liff.getProfile();
-    const staffSnap = await db.collection("users").doc(staffProfile.userId).get();
-    if (!staffSnap.exists || !["staff","admin"].includes(staffSnap.data().role)) {
-      document.getElementById("loading").classList.add("hidden");
-      document.getElementById("accessDenied").classList.remove("hidden");
-      return;
+  function unlockStaff() {
+    const saved = localStorage.getItem("g2_staff_unlocked");
+
+    if (saved === "yes") {
+      return true;
     }
-    document.getElementById("loading").classList.add("hidden");
-    document.getElementById("content").classList.remove("hidden");
-    const qrToken = new URLSearchParams(window.location.search).get("qrToken");
-    if (qrToken) { document.getElementById("tokenInput").value = qrToken; await lookupMember(); }
+
+    const pin = prompt("กรุณาใส่รหัสพนักงาน");
+
+    if (pin === "2026") {
+      localStorage.setItem("g2_staff_unlocked", "yes");
+      return true;
+    }
+
+    alert("รหัสพนักงานไม่ถูกต้อง");
+    return false;
+  }
+
+  async function init() {
+    try {
+      if (!unlockStaff()) {
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("accessDenied").classList.remove("hidden");
+        return;
+      }
+
+      staffProfile = {
+        userId: "staff-pin-2026",
+        displayName: "G2 Staff"
+      };
+
+      document.getElementById("loading").style.display = "none";
+      document.getElementById("content").classList.remove("hidden");
+
+      const qrToken = new URLSearchParams(window.location.search).get("qrToken");
+
+      if (qrToken) {
+        document.getElementById("tokenInput").value = qrToken;
+        await lookupMember();
+      }
+    } catch (error) {
+      console.error("init error:", error);
+      document.getElementById("loading").style.display = "none";
+      alert("โหลดหน้าเพิ่มแต้มไม่สำเร็จ: " + error.message);
+    }
+  }
+
+  function getCurrentMonthId() {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Bangkok",
+      year: "numeric",
+      month: "2-digit"
+    }).formatToParts(new Date());
+
+    const year = parts.find(p => p.type === "year").value;
+    const month = parts.find(p => p.type === "month").value;
+
+    return `${year}-${month}`;
+  }
+
+  function getActiveMonthlyPoints(data) {
+    const currentMonth = getCurrentMonthId();
+
+    if (!data || data.pointsMonth !== currentMonth) {
+      return 0;
+    }
+
+    return Number(data.monthlyPoints || 0);
   }
 
   async function lookupMember() {
-    const token = document.getElementById("tokenInput").value.trim();
-    if (!token) { alert("กรุณากรอกรหัส"); return; }
-    let snap = await db.collection("users").where("qrToken","==",token).limit(1).get();
-    if (snap.empty) snap = await db.collection("users").where("memberId","==",token).limit(1).get();
-    if (snap.empty) { alert("ไม่พบสมาชิก"); return; }
-    const doc = snap.docs[0];
-    memberDocId = doc.id; memberData = doc.data();
-    document.getElementById("mAvatar").src           = memberData.pictureUrl || "";
-    document.getElementById("mName").textContent     = memberData.nickname || memberData.displayName;
-    document.getElementById("mMemberId").textContent = "รหัส: " + (memberData.memberId || "");
-    document.getElementById("mCurrentPoints").textContent = "แต้มเดือนนี้: " + (memberData.monthlyPoints || 0);
-    document.getElementById("memberCard").classList.remove("hidden");
-    document.getElementById("pointButtons").classList.remove("hidden");
-    document.getElementById("searchBox").classList.add("hidden");
+    try {
+      const token = document.getElementById("tokenInput").value.trim();
+
+      if (!token) {
+        alert("กรุณากรอกรหัส");
+        return;
+      }
+
+      let snap = await db.collection("users").where("qrToken", "==", token).limit(1).get();
+
+      if (snap.empty) {
+        snap = await db.collection("users").where("memberId", "==", token).limit(1).get();
+      }
+
+      if (snap.empty) {
+        alert("ไม่พบสมาชิก");
+        return;
+      }
+
+      const doc = snap.docs[0];
+
+      memberDocId = doc.id;
+      memberData = doc.data();
+
+      memberData.monthlyPoints = getActiveMonthlyPoints(memberData);
+      memberData.pointsMonth = getCurrentMonthId();
+
+      document.getElementById("mAvatar").src = memberData.pictureUrl || "";
+      document.getElementById("mName").textContent = memberData.nickname || memberData.displayName || "-";
+      document.getElementById("mMemberId").textContent = "รหัส: " + (memberData.memberId || "");
+      document.getElementById("mCurrentPoints").textContent = "แต้มเดือนนี้: " + memberData.monthlyPoints;
+
+      document.getElementById("memberCard").classList.remove("hidden");
+      document.getElementById("pointButtons").classList.remove("hidden");
+      document.getElementById("searchBox").classList.add("hidden");
+
+      const nextActions = document.getElementById("nextActions");
+      if (nextActions) nextActions.classList.add("hidden");
+
+      const msg = document.getElementById("successMsg");
+      if (msg) {
+        msg.style.display = "none";
+        msg.innerHTML = "";
+      }
+    } catch (error) {
+      console.error("lookupMember error:", error);
+      alert("ค้นหาสมาชิกไม่สำเร็จ: " + error.message);
+    }
   }
 
   async function addPoints(amount) {
     if (!memberDocId) return;
+
     document.querySelectorAll(".pt-btn").forEach(b => b.disabled = true);
+
     try {
+      const currentMonth = getCurrentMonthId();
+      const currentPoints = getActiveMonthlyPoints(memberData);
+      const newMonthlyPoints = currentPoints + amount;
+
       const batch = db.batch();
+
       batch.update(db.collection("users").doc(memberDocId), {
-        monthlyPoints: firebase.firestore.FieldValue.increment(amount),
+        monthlyPoints: newMonthlyPoints,
+        pointsMonth: currentMonth,
         updatedAt: firebase.firestore.FieldValue.serverTimestamp()
       });
+
       batch.set(db.collection("pointTransactions").doc(), {
-        userId: memberDocId, memberId: memberData.memberId || "",
-        staffId: staffProfile.userId, points: amount, type: "add",
+        userId: memberDocId,
+        memberId: memberData.memberId || "",
+        staffId: staffProfile.userId,
+        points: amount,
+        type: "add",
+        monthId: currentMonth,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       });
+
       await batch.commit();
 
-      try {
-        await sendPointNotification({
-          userId: memberDocId,
-          addedPoints: amount
-        });
-        console.log("LINE notification sent");
-      } catch (notifyError) {
-        console.error("LINE notification error:", notifyError);
-      }
+      memberData.monthlyPoints = newMonthlyPoints;
+      memberData.pointsMonth = currentMonth;
 
-      memberData.monthlyPoints = (memberData.monthlyPoints || 0) + amount;
-      document.getElementById("mCurrentPoints").textContent = "แต้มเดือนนี้: " + memberData.monthlyPoints;
+      document.getElementById("mCurrentPoints").textContent = "แต้มเดือนนี้: " + newMonthlyPoints;
+
       const msg = document.getElementById("successMsg");
       msg.innerHTML = `
-        ✅ เพิ่ม +${amount} แต้มสำเร็จ! รวม ${memberData.monthlyPoints} แต้ม
-        <div style="margin-top:14px;">
-          <button onclick="window.location.href='line://nv/QRCodeReader'" style="background:#00c300;color:#fff;">
-            📷 ปิดหน้านี้เพื่อสแกนคนถัดไป
-          </button>
-          <button onclick="resetForm()" class="secondary" style="margin-top:8px;">
-            ✍️ ป้อนรหัสเอง
-          </button>
-        </div>
+        ✅ เพิ่ม +${amount} แต้มสำเร็จ! รวม ${newMonthlyPoints} แต้ม
       `;
       msg.style.display = "block";
-    } catch(e) { console.error(e); alert("เกิดข้อผิดพลาด: " + e.message); }
-    finally { document.querySelectorAll(".pt-btn").forEach(b => b.disabled = false); }
+
+      const nextActions = document.getElementById("nextActions");
+      if (nextActions) nextActions.classList.remove("hidden");
+
+      if (sendPointNotification) {
+        try {
+          await sendPointNotification({
+            userId: memberDocId,
+            addedPoints: amount
+          });
+          console.log("LINE notification sent");
+        } catch (notifyError) {
+          console.error("LINE notification error:", notifyError);
+        }
+      } else {
+        console.warn("sendPointNotification unavailable, skip notify");
+      }
+    } catch (error) {
+      console.error("addPoints error:", error);
+      alert("เกิดข้อผิดพลาด: " + error.message);
+    } finally {
+      document.querySelectorAll(".pt-btn").forEach(b => b.disabled = false);
+    }
   }
 
   function openLineScanner() {
-      
-      try {
-        if (typeof liff !== "undefined" && liff.closeWindow) {
-          liff.closeWindow();
-          return;
-        }
-      } catch (e) {}
+    try {
+      if (typeof liff !== "undefined" && liff.closeWindow) {
+        liff.closeWindow();
+        return;
+      }
+    } catch (e) {}
 
-      alert("กรุณากด X มุมขวาบน เพื่อกลับไปที่ LINE แล้วสแกน QR ลูกค้าคนถัดไป");
-    
-    }
+    alert("กรุณากด X มุมขวาบน แล้วใช้ LINE สแกน QR ลูกค้าคนถัดไป");
+  }
 
-    function showNextActions() {
-      const box = document.getElementById("nextActions");
-      if (box) box.classList.remove("hidden");
-    }
+  function showNextActions() {
+    const box = document.getElementById("nextActions");
+    if (box) box.classList.remove("hidden");
+  }
 
-    function resetForm() {
+  function resetForm() {
     memberDocId = memberData = null;
     document.getElementById("tokenInput").value = "";
     document.getElementById("memberCard").classList.add("hidden");
