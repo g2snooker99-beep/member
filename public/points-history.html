@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>G2 - ประวัติแต้มของฉัน</title>
+  <link rel="stylesheet" href="./css/style.css"/>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <style>
+    body{color:#fff;background:radial-gradient(circle at top,#123b29,#07120d 70%);font-family:Arial,sans-serif}
+    .history-card{max-width:480px;margin:30px auto;padding:22px;border-radius:20px;background:#0b1811;border:1px solid #236943}
+    .muted{color:#a9c9b5;font-size:14px;line-height:1.6}
+    select{width:100%;padding:13px;border-radius:12px;background:#172b20;color:#fff;border:1px solid #387a50;font-size:16px;margin:12px 0}
+    .entry{display:flex;justify-content:space-between;gap:12px;padding:13px 0;border-top:1px solid #244332}
+    .positive{color:#6cff9d}.negative{color:#ff8585}
+    .summary{padding:16px;background:#182b20;border-radius:15px;margin:12px 0;font-weight:bold}
+    .return{display:block;text-align:center;color:#b5ff83;margin-top:22px}
+  </style>
+</head>
+<body>
+  <main class="history-card">
+    <h1 style="text-align:center">📜 ประวัติแต้มของฉัน</h1>
+    <p id="memberName" class="muted" style="text-align:center">กำลังตรวจสอบสมาชิก...</p>
+    <label for="monthSelect">เลือกเดือนย้อนหลัง</label>
+    <select id="monthSelect" disabled></select>
+    <div id="summary" class="summary">กำลังโหลด...</div>
+    <div id="entries" aria-live="polite"></div>
+    <a class="return" href="./member.html">← กลับหน้าสมาชิก</a>
+  </main>
+<script src="./js/firebase-config.js"></script>
+<script>
+  const LIFF_ID = "2010084269-aui1GaWz";
+  const $ = id => document.getElementById(id);
+  let transactions = [];
+
+  function monthInBangkok(date) {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Bangkok", year:"numeric", month:"2-digit"
+    }).formatToParts(date);
+    return parts.find(p=>p.type==="year").value+"-"+parts.find(p=>p.type==="month").value;
+  }
+  function monthOptions() {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone:"Asia/Bangkok", year:"numeric",month:"numeric"
+    }).formatToParts(new Date());
+    const year = Number(parts.find(p=>p.type==="year").value);
+    const month = Number(parts.find(p=>p.type==="month").value);
+    for (let i=0;i<24;i++) {
+      const dt=new Date(Date.UTC(year,month-1-i,1));
+      const id=dt.toISOString().slice(0,7);
+      const opt=document.createElement("option");
+      opt.value=id;
+      opt.textContent=dt.toLocaleDateString("th-TH",{timeZone:"UTC",month:"long",year:"numeric"});
+      $("monthSelect").appendChild(opt);
+    }
+  }
+  function transactionDate(tx) {
+    return tx.createdAt && typeof tx.createdAt.toDate==="function" ? tx.createdAt.toDate() : null;
+  }
+  function renderMonth() {
+    const month=$("monthSelect").value;
+    const rows=transactions.filter(tx=>{
+      const d=transactionDate(tx);
+      return d ? monthInBangkok(d)===month : (tx.monthId||tx.monthKey)===month;
+    }).sort((a,b)=>(transactionDate(b)?.getTime()||0)-(transactionDate(a)?.getTime()||0));
+    const total=rows.reduce((sum,tx)=>sum+Number(tx.points||0),0);
+    $("summary").textContent="เดือน "+month+" • "+rows.length+" รายการ • รวม "+total+" แต้ม";
+    $("entries").replaceChildren();
+    if (!rows.length) {
+      const p=document.createElement("p");
+      p.className="muted";
+      p.textContent="ไม่พบรายการเพิ่มหรือลดแต้มในเดือนนี้";
+      $("entries").appendChild(p);
+      return;
+    }
+    rows.forEach(tx=>{
+      const points=Number(tx.points||0);
+      const row=document.createElement("div");row.className="entry";
+      const info=document.createElement("div");
+      const heading=document.createElement("strong");
+      heading.textContent=points>=0?"เพิ่มแต้ม":"ลดแต้ม";
+      const date=document.createElement("div");date.className="muted";
+      const d=transactionDate(tx);
+      date.textContent=d?d.toLocaleString("th-TH",{timeZone:"Asia/Bangkok",dateStyle:"medium",timeStyle:"short"}):"ไม่พบเวลาบันทึก";
+      info.append(heading,date);
+      const value=document.createElement("strong");
+      value.className=points>=0?"positive":"negative";
+      value.textContent=(points>0?"+":"")+points;
+      row.append(info,value);$("entries").appendChild(row);
+    });
+  }
+  async function init() {
+    try {
+      await liff.init({liffId:LIFF_ID});
+      if (!liff.isLoggedIn()) {liff.login();return;}
+      const profile=await liff.getProfile();
+      const user=await db.collection("users").doc(profile.userId).get();
+      if (!user.exists) throw new Error("ไม่พบบัญชีสมาชิก");
+      $("memberName").textContent="คุณ "+(user.data().nickname||profile.displayName||"สมาชิก");
+      monthOptions();
+      $("summary").textContent="กำลังโหลดประวัติ...";
+      // Transaction records can predate monthId; filter by Bangkok month in browser.
+      const snap=await db.collection("pointTransactions").where("userId","==",profile.userId).get();
+      transactions=snap.docs.map(d=>d.data());
+      $("monthSelect").disabled=false;
+      $("monthSelect").addEventListener("change",renderMonth);
+      renderMonth();
+    } catch(err) {
+      console.error(err);
+      $("summary").textContent="โหลดประวัติไม่สำเร็จ: "+err.message;
+    }
+  }
+  init();
+</script>
+</body>
+</html>
