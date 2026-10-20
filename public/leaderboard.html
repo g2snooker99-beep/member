@@ -39,18 +39,27 @@
   <script src="./js/firebase-config.js"></script>
 
   <script>
+    function currentBangkokMonth() {
+      const parts = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Bangkok", year: "numeric", month: "2-digit"
+      }).formatToParts(new Date());
+      return parts.find(p => p.type === "year").value + "-" +
+        parts.find(p => p.type === "month").value;
+    }
+
     async function loadLeaderboard() {
       const box = document.getElementById("leaderboard");
 
       try {
         const snap = await db.collection("users").get();
 
+        const activeMonth = currentBangkokMonth();
         let members = [];
 
         snap.forEach(doc => {
           const u = doc.data();
 
-          if (u.role === "member") {
+          if (u.role === "member" && u.pointsMonth === activeMonth && Number(u.monthlyPoints || 0) > 0) {
             members.push({
               id: doc.id,
               ...u
@@ -65,7 +74,7 @@
         if (members.length === 0) {
           box.innerHTML = `
             <div class="notice">
-              ยังไม่มีสมาชิกในระบบ
+              ยังไม่มีสมาชิกที่มีแต้มในเดือนนี้
             </div>
           `;
           return;
