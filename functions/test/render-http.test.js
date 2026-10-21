@@ -5,6 +5,7 @@ const origin="https://g2-member-test-api.onrender.com";
 const base={G2_MEMBER_ENABLED:"false",G2_FIREBASE_PROJECT_ID:"g2-member-test",G2_MEMBER_API_ORIGIN:origin,MEMBER_LINE_CHANNEL_ID:"2010084269"};
 test("Render rejects live projects, live flags, emulators and wrong credentials",()=>{
   assert.equal(validateConfig(base),null);
+  assert.throws(()=>validateConfig({...base,G2_TEST_FIREBASE_SERVICE_ACCOUNT_JSON:"private-sensitive-value"}),e=>!e.message.includes("private-sensitive-value"));
   for(const patch of [{G2_FIREBASE_PROJECT_ID:"member-3e17e"},{G2_MEMBER_ENABLED:"true"},{FIRESTORE_EMULATOR_HOST:"localhost:8080"},{G2_TEST_FIREBASE_SERVICE_ACCOUNT_JSON:JSON.stringify({type:"service_account",project_id:"member-3e17e",client_email:"x@member-3e17e.iam.gserviceaccount.com"})}])assert.throws(()=>validateConfig({...base,...patch}));
 });
 test("HTTP auth, Origin, missing keys, duplicates and Firebase outage",async()=>{

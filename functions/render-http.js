@@ -9,7 +9,7 @@ function validateConfig(env){
   if(env.G2_MEMBER_ENABLED!=="false"||env.G2_FIREBASE_PROJECT_ID!==PROJECT||env.FIRESTORE_EMULATOR_HOST||env.FIREBASE_AUTH_EMULATOR_HOST)throw Error("Sandbox isolation required");
   if(!/^https:\/\/[a-z0-9-]+\.onrender\.com$/.test(env.G2_MEMBER_API_ORIGIN||""))throw Error("Canonical Render origin required");
   if(!/^\d{5,20}$/.test(env.MEMBER_LINE_CHANNEL_ID||""))throw Error("LINE channel required");
-  const credential=JSON.parse(env.G2_TEST_FIREBASE_SERVICE_ACCOUNT_JSON||"null");
+  let credential;try{credential=JSON.parse(env.G2_TEST_FIREBASE_SERVICE_ACCOUNT_JSON||"null");}catch{throw Error("Invalid test credential JSON");}
   if(credential&&(credential.project_id!==PROJECT||!credential.client_email?.endsWith("@g2-member-test.iam.gserviceaccount.com")||credential.type!=="service_account"))throw Error("Test-only service account required");
   return credential;
 }
@@ -74,4 +74,4 @@ function start(env=process.env){
   return server;
 }
 module.exports={validateConfig,createHandler,start};
-if(require.main===module)start();
+if(require.main===module){try{start();}catch{console.error("Test backend configuration invalid; check sandbox settings privately");process.exitCode=1;}}

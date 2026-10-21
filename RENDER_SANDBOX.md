@@ -32,9 +32,9 @@ paste into chat, or log them. Existing Firebase rules deny all client writes.
    `G2_TEST_FIREBASE_SERVICE_ACCOUNT_JSON`, paste JSON privately → Save, rebuild, deploy.
 3. Firebase Console → **g2-member-test** → Project settings → General → Your apps
    → select the already registered `g2-render-test-web` (app ID
-   `1:440696322754:web:2314128e8f65895dfa195b`, without Hosting). Copy the web
-   config to `G2_TEST_FIREBASE_WEB_CONFIG_JSON` as valid JSON. Authentication →
-   Settings → Authorized domains → add the test API service hostname.
+   `1:440696322754:web:2314128e8f65895dfa195b`, without Hosting). Its public web
+   config is already saved in Render as `G2_TEST_FIREBASE_WEB_CONFIG_JSON`.
+   Custom-token login does not require enabling a social sign-in provider.
 4. LINE Developers → Login channel **2010084269** → LIFF → Add a **new test LIFF**
    → Endpoint URL = the test API root → scope **openid/profile**. Set
    `G2_TEST_LIFF_ID` in Render. Do not repoint the existing live Member LIFF.
