@@ -1,0 +1,119 @@
+"use strict";
+const {createHash}=require("node:crypto");
+const UID=/^U[0-9a-f]{32}$/i, MONTH=/^\d{4}-(0[1-9]|1[0-2])$/;
+const monthAt=d=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok",year:"numeric",month:"2-digit"}).format(d).slice(0,7);
+function fail(code,message){const e=new Error(message);e.code=code;throw e;}
+function buildService({db,auth,FieldValue,FieldPath,channelId,verifyLine,now=()=>new Date()}){
+  const stamp=()=>FieldValue.serverTimestamp();
+  async function identity(uid,roles,tx){
+    if(!UID.test(uid||""))fail("unauthenticated","LINE sign-in required");
+    const ref=db.collection("users").doc(uid),s=tx?await tx.get(ref):await ref.get();
+    if(!s.exists||s.data().isActive!==true||!roles.includes(s.data().role))fail("permission-denied","Active authorized account required");
+    return s;
+  }
+  async function exchange(idToken){
+    if(!/^\d{5,20}$/.test(channelId||""))fail("failed-precondition","LINE channel missing");
+    if(typeof idToken!=="string"||idToken.length<20||idToken.length>8192)fail("invalid-argument","Invalid token");
+    const c=await verifyLine(idToken,channelId);
+    if(c.iss!=="https://access.line.me"||String(c.aud)!==channelId||!UID.test(c.sub||"")||!Number.isFinite(c.exp)||c.exp*1000<=now().getTime())fail("unauthenticated","Invalid LINE identity");
+    const old=await db.collection("users").doc(c.sub).get();
+    if(old.exists&&old.data().isActive!==true)fail("permission-denied","Account inactive");
+    // Roles are never taken from the browser or stored in long-lived claims.
+    return {customToken:await auth.createCustomToken(c.sub)};
+  }
+  async function register(uid,d){
+    if(!UID.test(uid||""))fail("unauthenticated","LINE sign-in required");
+    if(typeof d.nickname!=="string"||!d.nickname.trim()||d.nickname.length>60||!/^0\d{8,9}$/.test(d.phone||""))fail("invalid-argument","Invalid profile");
+    return db.runTransaction(async tx=>{
+      const ref=db.collection("users").doc(uid),s=await tx.get(ref);
+      if(s.exists)return {memberId:s.data().memberId,existing:true};
+      const memberId="G2-"+uid.slice(1).toUpperCase();
+      tx.create(ref,{userId:uid,memberId,nickname:d.nickname.trim(),phone:d.phone,role:"member",isActive:true,monthlyPoints:0,lifetimeHours:0,pointsMonth:monthAt(now()),createdAt:stamp(),updatedAt:stamp()});
+      return {memberId};
+    });
+  }
+  async function addPoints(uid,d){
+    if(!UID.test(d.userId||"")||!/^[a-f0-9-]{36}$/i.test(d.requestId||"")||!Number.isInteger(d.points)||d.points<1||d.points>3)fail("invalid-argument","Member, UUID and 1–3 points required");
+    const month=monthAt(now()),fingerprint=createHash("sha256").update(JSON.stringify([uid,d.userId,d.points,month])).digest("hex");
+    const receipt=db.collection("pointTransactions").doc("manual_"+d.requestId),ref=db.collection("users").doc(d.userId),gate=db.collection("posAwardMonths").doc(month);
+    return db.runTransaction(async tx=>{
+      await identity(uid,["staff","admin"],tx);
+      const [r,m,g]=await Promise.all([tx.get(receipt),tx.get(ref),tx.get(gate)]);
+      if(r.exists){if(r.data().fingerprint!==fingerprint)fail("already-exists","Conflicting retry");return {duplicate:true};}
+      if(!g.exists||g.data().state!=="open")fail("failed-precondition","Month is not open");
+      if(!m.exists||m.data().role!=="member"||m.data().isActive!==true)fail("permission-denied","Active member required");
+      const p=m.data();
+      if(p.pointsMonth!==month&&p.monthlyPoints!==0)fail("failed-precondition","Previous balance needs close/migration");
+      const points=p.pointsMonth===month?p.monthlyPoints:0;
+      if(!Number.isFinite(points)||points<0)fail("failed-precondition","Invalid balance");
+      tx.update(ref,{monthlyPoints:points+d.points,pointsMonth:month,updatedAt:stamp()});
+      tx.create(receipt,{userId:d.userId,staffId:uid,points:d.points,monthId:month,type:"add",source:"manual",fingerprint,createdAt:stamp(),timestamp:stamp()});
+      return {duplicate:false};
+    });
+  }
+  async function openMonth(uid,month){
+    if(!MONTH.test(month||"")||month!==monthAt(now()))fail("invalid-argument","Current Bangkok month only");
+    return db.runTransaction(async tx=>{
+      await identity(uid,["admin"],tx);
+      const ref=db.collection("posAwardMonths").doc(month),s=await tx.get(ref);
+      if(s.exists&&s.data().state!=="open")fail("failed-precondition","Cannot reopen closed month");
+      if(!s.exists)tx.create(ref,{state:"open",openedBy:uid,openedAt:stamp()});
+      return {state:"open"};
+    });
+  }
+  async function closeMonth(uid,month){
+    if(!MONTH.test(month||"")||month>=monthAt(now()))fail("invalid-argument","Completed Bangkok month only");
+    const gate=db.collection("posAwardMonths").doc(month),result=db.collection("seasonResults").doc(month),snapshots=result.collection("members");
+    const start=await db.runTransaction(async tx=>{
+      await identity(uid,["admin"],tx);const s=await tx.get(gate);
+      if(!s.exists)fail("failed-precondition","Migrate/open month first");
+      if(s.data().state==="closed")return false;
+      if(!["open","closing"].includes(s.data().state))fail("failed-precondition","Invalid gate");
+      tx.update(gate,{state:"closing",closingAt:stamp(),closedBy:uid});return true;
+    });
+    if(!start)return {state:"closed",duplicate:true};
+    // Read/write the same gate as POS/manual grants. Deterministic snapshots
+    // let a timed-out close resume without erasing a new month's points.
+    let cursor=null;
+    for(;;){
+      let q=db.collection("users").orderBy(FieldPath.documentId()).limit(100);if(cursor)q=q.startAfter(cursor);
+      const page=await q.get();if(page.empty)break;
+      for(const row of page.docs)await db.runTransaction(async tx=>{
+        await identity(uid,["admin"],tx);
+        const target=snapshots.doc(row.id),[g,u,s]=await Promise.all([tx.get(gate),tx.get(row.ref),tx.get(target)]);
+        if(g.data().state!=="closing")fail("failed-precondition","Close not active");
+        if(s.exists||!u.exists||u.data().role!=="member")return;
+        const p=u.data();if(!p.pointsMonth&&p.monthlyPoints>0)fail("failed-precondition","Legacy balance needs migration");
+        const points=p.pointsMonth===month?p.monthlyPoints:0;if(!Number.isFinite(points)||points<0)fail("failed-precondition","Invalid balance");
+        tx.create(target,{userId:row.id,nickname:p.nickname||"",memberId:p.memberId||"",points});
+        if(p.pointsMonth===month)tx.update(row.ref,{monthlyPoints:0,updatedAt:stamp()});
+      });
+      cursor=page.docs.at(-1);
+    }
+    const leaders=await snapshots.orderBy("points","desc").orderBy(FieldPath.documentId()).limit(3).get();
+    const top3=leaders.docs.filter(d=>d.data().points>0).map((d,i)=>({...d.data(),rank:i+1}));
+    cursor=null;
+    for(;;){
+      let q=snapshots.orderBy(FieldPath.documentId()).limit(100);if(cursor)q=q.startAfter(cursor);
+      const page=await q.get();if(page.empty)break;
+      for(const row of page.docs){
+        const p=row.data(),top=top3.find(x=>x.userId===p.userId);
+        if(!top&&p.points<15)continue;
+        const type=top?"top"+top.rank:"discount10",reward=db.collection("monthlyRewards").doc(month+"_"+p.userId+"_"+type);
+        await db.runTransaction(async tx=>{
+          await identity(uid,["admin"],tx);const [g,r]=await Promise.all([tx.get(gate),tx.get(reward)]);
+          if(g.data().state!=="closing")fail("failed-precondition","Close not active");
+          if(!r.exists)tx.create(reward,{userId:p.userId,monthKey:month,type,status:"available",createdAt:stamp()});
+        });
+      }cursor=page.docs.at(-1);
+    }
+    return db.runTransaction(async tx=>{
+      await identity(uid,["admin"],tx);const g=await tx.get(gate);
+      if(g.data().state==="closed")return {state:"closed",duplicate:true};
+      if(g.data().state!=="closing")fail("failed-precondition","Invalid gate");
+      tx.set(result,{monthId:month,top3,closedAt:stamp()});tx.update(gate,{state:"closed",closedAt:stamp()});return {state:"closed",top3};
+    });
+  }
+  return {exchange,register,addPoints,openMonth,closeMonth,identity};
+}
+module.exports={buildService,monthAt};

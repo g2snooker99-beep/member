@@ -1,0 +1,1 @@
+{"functions":[{"source":"functions","codebase":"secure-member"}],"firestore":{"rules":"firestore.secure.rules"},"hosting":{"public":"secure-public","ignore":["**/.*","**/node_modules/**"]},"emulators":{"auth":{"port":9099},"firestore":{"port":8080},"ui":{"enabled":false},"singleProjectMode":true}}

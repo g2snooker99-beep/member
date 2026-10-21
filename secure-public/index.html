@@ -1,0 +1,11 @@
+<!doctype html><html lang="th"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>G2 Snooker Member</title>
+<style>body{font:17px system-ui;background:#102c24;color:#fff;max-width:720px;margin:auto;padding:24px}section{background:#1b3c32;padding:20px;margin:16px 0;border-radius:12px}input,button{font:inherit;padding:12px;margin:5px;max-width:90%}button{cursor:pointer}pre{white-space:pre-wrap}nav a{color:#f3cf70;margin:8px}</style>
+<h1>G2 Snooker Member</h1><p id="status" role="status">กำลังยืนยันตัวตน LINE…</p>
+<section id="registration" hidden><h2>สมัครสมาชิก</h2><input id="nickname" maxlength="60" placeholder="ชื่อเล่น"><input id="phone" inputmode="tel" placeholder="เบอร์โทร"><button id="register">สมัครสมาชิก</button></section>
+<section id="card" hidden><h2 id="name"></h2><p id="memberId"></p><p id="balance"></p><div id="qr"></div><h3>ประวัติคะแนนล่าสุด</h3><div id="history"></div><h3>สิทธิ์ประจำเดือน</h3><div id="rewards"></div></section>
+<section id="staff" hidden><h2>เพิ่มแต้มสมาชิก</h2><input id="target" placeholder="LINE user ID จาก QR สมาชิก"><select id="points"><option>1</option><option>2</option><option>3</option></select><button id="add">บันทึกแต้ม</button><p>หากส่งไม่สำเร็จ ให้กดซ้ำเพื่อส่งรายการเดิม</p></section>
+<section id="admin" hidden><h2>จัดการรอบเดือน</h2><input id="month" type="month"><button id="open">เปิดเดือนปัจจุบัน</button><button id="close">ปิดเดือนที่ผ่านมา</button><p>การปิดเดือนจะล็อกคะแนน สรุปรางวัล และเก็บประวัติ</p></section>
+<section><h2>ผลอันดับเดือนที่ผ่านมา</h2><div id="results"></div></section>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-auth-compat.js"></script><script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore-compat.js"></script><script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-functions-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script><script src="config.js"></script><script src="app.js"></script></html>
