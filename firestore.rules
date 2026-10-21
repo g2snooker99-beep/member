@@ -7,7 +7,11 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isActive == true;
     }
     function staff() {
-      return active() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['staff','admin'];
+      return active()
+        && exists(/databases/$(database)/documents/memberStaffAccess/$(request.auth.uid))
+        && get(/databases/$(database)/documents/memberStaffAccess/$(request.auth.uid)).data.enabled == true
+        && get(/databases/$(database)/documents/memberStaffAccess/$(request.auth.uid)).data.role in ['staff','admin']
+        && get(/databases/$(database)/documents/memberStaffAccess/$(request.auth.uid)).data.role == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
     match /users/{uid} {
       allow get: if signedIn() && (request.auth.uid == uid || staff());

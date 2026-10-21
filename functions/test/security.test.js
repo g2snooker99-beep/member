@@ -17,13 +17,14 @@ async function seed(){
   await env.clearFirestore();clock=new Date("2026-10-21T04:00:00Z");claims=valid;offline=false;
   for(const [uid,role] of [[U,"member"],[OTHER,"member"],[S,"staff"],[A,"admin"]])await db.collection("users").doc(uid).set({role,isActive:true,userId:uid,monthlyPoints:0,lifetimeHours:0,pointsMonth:"2026-10",nickname:role,memberId:uid});
   await db.collection("posAwardMonths").doc("2026-10").set({state:"open"});
+  for(const [uid,role] of [[S,"staff"],[A,"admin"]])await db.collection("memberStaffAccess").doc(uid).set({role,enabled:true});
 }
 before(async()=>{
   assert.equal(process.env.GCLOUD_PROJECT,projectId);
   assert.match(process.env.FIRESTORE_EMULATOR_HOST||"",/^(127\.0\.0\.1|localhost):/);
   env=await initializeTestEnvironment({projectId,firestore:{rules:fs.readFileSync("../firestore.secure.rules","utf8")}});
   admin.initializeApp({projectId});db=admin.firestore();
-  service=buildService({db,auth:{createCustomToken:async uid=>"test:"+uid},FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,channelId:"1234567890",now:()=>clock,verifyLine:async()=>{if(offline)throw Error("LINE unavailable");return claims;}});
+  service=buildService({db,auth:{createCustomToken:async uid=>"test:"+uid},FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,channelId:"1234567890",ownerUid:A,now:()=>clock,verifyLine:async()=>{if(offline)throw Error("LINE unavailable");return claims;}});
 });
 after(async()=>{await env?.cleanup();await admin.app().delete();});
 test("LINE audience, issuer, expiry, forged subject, outage fail closed",async()=>{
@@ -121,4 +122,14 @@ test("Firebase Auth emulator accepts custom token with verified LINE uid",async(
   assert.ok(result.idToken);
   const decoded=await admin.auth().verifyIdToken(result.idToken);
   assert.equal(decoded.uid,U);
+});
+test("forged legacy staff/admin roles cannot enter the secure system",async()=>{
+  await seed();
+  const client=env.authenticatedContext(OTHER,{role:"admin"}).firestore();
+  for(const role of ["staff","admin"]){
+    await db.collection("users").doc(OTHER).update({role});
+    await assert.rejects(service.addPoints(OTHER,{requestId,monthId:"2026-10",userId:U,points:1}),{code:"permission-denied"});
+    await assertFails(getDoc(doc(client,"users",U)));
+  }
+  await assertFails(setDoc(doc(client,"memberStaffAccess",OTHER),{role:"admin",enabled:true}));
 });

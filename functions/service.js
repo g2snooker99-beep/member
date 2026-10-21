@@ -3,12 +3,18 @@ const {createHash}=require("node:crypto");
 const UID=/^U[0-9a-f]{32}$/i, MONTH=/^\d{4}-(0[1-9]|1[0-2])$/;
 const monthAt=d=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok",year:"numeric",month:"2-digit"}).format(d).slice(0,7);
 function fail(code,message){const e=new Error(message);e.code=code;throw e;}
-function buildService({db,auth,FieldValue,FieldPath,channelId,verifyLine,now=()=>new Date()}){
+function buildService({db,auth,FieldValue,FieldPath,channelId,ownerUid,verifyLine,now=()=>new Date()}){
   const stamp=()=>FieldValue.serverTimestamp();
   async function identity(uid,roles,tx){
     if(!UID.test(uid||""))fail("unauthenticated","LINE sign-in required");
     const ref=db.collection("users").doc(uid),s=tx?await tx.get(ref):await ref.get();
     if(!s.exists||s.data().isActive!==true||!roles.includes(s.data().role))fail("permission-denied","Active authorized account required");
+    if(["staff","admin"].includes(s.data().role)){
+      // Legacy users.role was publicly writable: it is not trusted authority.
+      const acl=db.collection("memberStaffAccess").doc(uid),access=tx?await tx.get(acl):await acl.get();
+      if(!access.exists||access.data().enabled!==true||access.data().role!==s.data().role)fail("permission-denied","Server-approved staff access required");
+      if(s.data().role==="admin"&&uid!==ownerUid)fail("permission-denied","Pinned owner identity required");
+    }
     return s;
   }
   async function exchange(idToken){
@@ -136,6 +142,7 @@ function buildService({db,auth,FieldValue,FieldPath,channelId,verifyLine,now=()=
       await identity(uid,["admin"],tx);const ref=db.collection("users").doc(d.userId),old=await tx.get(ref);
       if(!old.exists||old.data().role==="admin")fail("permission-denied","Administrator accounts require separate recovery process");
       tx.update(ref,{role:d.role,isActive:d.isActive,updatedAt:stamp()});
+      tx.set(db.collection("memberStaffAccess").doc(d.userId),{role:d.role,enabled:d.role==="staff"&&d.isActive,approvedBy:uid,updatedAt:stamp()});
       if(d.role!=="member"||!d.isActive)tx.delete(db.collection("publicLeaderboard").doc(createHash("sha256").update(d.userId).digest("hex")));
       tx.create(db.collection("memberAudit").doc(),{actor:uid,target:d.userId,action:"setStaff",role:d.role,isActive:d.isActive,createdAt:stamp()});
       return {updated:true};
