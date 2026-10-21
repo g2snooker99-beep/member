@@ -57,6 +57,6 @@ $("setStaff").onclick=()=>action(()=>call("memberSetStaff",{userId:$("staffId").
   await refresh();
   const currentMonth=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok",year:"numeric",month:"2-digit"}).format(new Date()).slice(0,7);
   const board=await db.collection("publicLeaderboard").where("monthId","==",currentMonth).orderBy("points","desc").limit(100).get();let rank=0;board.forEach(d=>row("leaderboard",`${++rank}. ${d.data().nickname} ${d.data().points} แต้ม`));
-  const results=await db.collection("seasonResults").orderBy(firebase.firestore.FieldPath.documentId(),"desc").limit(6).get();
+  const results=await db.collection("seasonResults").orderBy("monthId","desc").limit(6).get();
   results.forEach(d=>row("results",`${d.id}: ${(d.data().top3||[]).map(p=>`${p.rank}. ${p.nickname} ${p.points} แต้ม`).join(" / ")}`));status("เข้าสู่ระบบแล้ว");
 }catch(e){status(e.message);}})();
