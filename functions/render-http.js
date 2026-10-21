@@ -71,6 +71,13 @@ function start(env=process.env){
   const server=http.createServer(createHandler({service,auth,origin:env.G2_MEMBER_API_ORIGIN,publicConfig}));
   server.requestTimeout=15000;server.headersTimeout=10000;server.listen(Number(env.PORT||10000),"0.0.0.0");
   process.on("SIGTERM",()=>{server.close(()=>process.exit(0));setTimeout(()=>process.exit(1),25000).unref();});
+  if(env.G2_TEST_REHEARSAL_RUN_ID){
+    if(!credential)throw Error("Connected test credentials required for rehearsal");
+    const admin=require("firebase-admin"),testApp=admin.app("render-test");
+    server.once("listening",()=>require("./render-rehearsal").runRehearsal({db:testApp.firestore(),auth,FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,env,port:server.address().port})
+      .then(result=>console.log("G2_TEST_REHEARSAL "+JSON.stringify(result)))
+      .catch(e=>console.error("G2_TEST_REHEARSAL "+JSON.stringify({state:"failed",runId:env.G2_TEST_REHEARSAL_RUN_ID,errorCode:String(e.code||e.name||"unknown").slice(0,80)}))));
+  }
   return server;
 }
 module.exports={validateConfig,createHandler,start};
