@@ -26,7 +26,7 @@ service cloud.firestore {
         && request.resource.data.lifetimeHours == 0
         && request.resource.data.isActive == true
         && request.resource.data.userId == userId
-        && request.resource.data.pointsMonth == null;
+        && !('pointsMonth' in request.resource.data);
       // Members can edit profile attributes only, not roles or balances.
       allow update: if memberSelf(userId)
         && request.resource.data.diff(resource.data)
