@@ -3,7 +3,7 @@ const {createHash}=require("node:crypto");
 const UID=/^U[0-9a-f]{32}$/i, MONTH=/^\d{4}-(0[1-9]|1[0-2])$/;
 const monthAt=d=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok",year:"numeric",month:"2-digit"}).format(d).slice(0,7);
 function fail(code,message){const e=new Error(message);e.code=code;throw e;}
-function buildService({db,auth,FieldValue,FieldPath,channelId,ownerUid,verifyLine,now=()=>new Date()}){
+function buildService({db,auth,FieldValue,FieldPath,channelId,ownerUid,verifyLine,sandboxOnly=false,now=()=>new Date()}){
   const stamp=()=>FieldValue.serverTimestamp();
   async function identity(uid,roles,tx){
     if(!UID.test(uid||""))fail("unauthenticated","LINE sign-in required");
@@ -45,6 +45,7 @@ function buildService({db,auth,FieldValue,FieldPath,channelId,ownerUid,verifyLin
     const receipt=db.collection("pointTransactions").doc("manual_"+d.requestId),ref=db.collection("users").doc(d.userId),gate=db.collection("posAwardMonths").doc(month);
     return db.runTransaction(async tx=>{
       await identity(uid,["staff","admin"],tx);
+      if(sandboxOnly){const test=await tx.get(db.collection("sandboxMembers").doc(d.userId));if(!test.exists||test.data().dummyOnly!==true||test.data().enabled!==true)fail("permission-denied","Approved dummy members only");}
       const [r,m,g]=await Promise.all([tx.get(receipt),tx.get(ref),tx.get(gate)]);
       if(r.exists){if(r.data().fingerprint!==fingerprint)fail("already-exists","Conflicting retry");return {duplicate:true};}
       if(!g.exists||g.data().state!=="open")fail("failed-precondition","Month is not open");

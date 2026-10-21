@@ -27,6 +27,16 @@ before(async()=>{
   service=buildService({db,auth:{createCustomToken:async uid=>"test:"+uid},FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,channelId:"1234567890",ownerUid:A,now:()=>clock,verifyLine:async()=>{if(offline)throw Error("LINE unavailable");return claims;}});
 });
 after(async()=>{await env?.cleanup();await admin.app().delete();});
+test("Render sandbox denies unapproved members even with valid staff authority",async()=>{
+  await seed();
+  const sandbox=buildService({db,auth:{},FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,channelId:"1234567890",ownerUid:A,sandboxOnly:true,now:()=>clock});
+  const data={requestId,monthId:"2026-10",userId:U,points:1};
+  await assert.rejects(sandbox.addPoints(S,data),{code:"permission-denied"});
+  await db.collection("sandboxMembers").doc(U).set({dummyOnly:true,enabled:true});
+  assert.equal((await sandbox.addPoints(S,data)).duplicate,false);
+  await db.collection("sandboxMembers").doc(U).update({enabled:false});
+  await assert.rejects(sandbox.addPoints(S,{...data,requestId:"22345678-1234-1234-1234-123456789012"}),{code:"permission-denied"});
+});
 test("LINE audience, issuer, expiry, forged subject, outage fail closed",async()=>{
   await seed();assert.equal((await service.exchange("a".repeat(30))).customToken,"test:"+U);
   for(const patch of [{aud:"wrong"},{iss:"wrong"},{exp:1},{sub:"fake"}]){claims={...valid,...patch};await assert.rejects(service.exchange("a".repeat(30)));}

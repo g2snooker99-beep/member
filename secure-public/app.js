@@ -44,7 +44,11 @@ $("redeem").onclick=()=>action(()=>call("memberRedeemReward",{rewardId:$("reward
 $("setStaff").onclick=()=>action(()=>call("memberSetStaff",{userId:$("staffId").value.trim(),role:$("staffRole").value,isActive:$("staffActive").checked}));
 (async()=>{try{
   const c=window.G2_MEMBER_CONFIG;if(!c?.firebase||!c.liffId)throw Error("ยังไม่ได้ตั้งค่าระบบทดสอบ Firebase และ LINE");
-  firebase.initializeApp(c.firebase);db=firebase.firestore();const functions=firebase.app().functions("asia-southeast1");call=async(n,d)=>(await functions.httpsCallable(n)(d)).data;
+  firebase.initializeApp(c.firebase);db=firebase.firestore();
+  if(c.backendUrl){
+    if(c.firebase.projectId!=="g2-member-test"||c.backendUrl!==location.origin)throw Error("Invalid test backend");
+    call=async(n,d)=>{const headers={"Content-Type":"application/json"};const user=firebase.auth().currentUser;if(user)headers.Authorization="Bearer "+await user.getIdToken();const response=await fetch(c.backendUrl+"/api/"+n,{method:"POST",headers,body:JSON.stringify(d)});const result=await response.json();if(!response.ok)throw Error(result.message||result.error);return result.data;};
+  }else{const functions=firebase.app().functions("asia-southeast1");call=async(n,d)=>(await functions.httpsCallable(n)(d)).data;}
   await liff.init({liffId:c.liffId});if(!liff.isLoggedIn()){liff.login();return;}
   const idToken=liff.getIDToken();if(!idToken)throw Error("LINE ต้องเปิดสิทธิ์ openid");
   const login=await call("memberLineLogin",{idToken});await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.SESSION);
