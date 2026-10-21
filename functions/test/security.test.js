@@ -118,5 +118,7 @@ test("Firebase Auth emulator accepts custom token with verified LINE uid",async(
     method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,returnSecureToken:true})
   });
   assert.equal(response.status,200);const result=await response.json();
-  assert.equal(result.localId,U);assert.ok(result.idToken);
+  assert.ok(result.idToken);
+  const decoded=await admin.auth().verifyIdToken(result.idToken);
+  assert.equal(decoded.uid,U);
 });
