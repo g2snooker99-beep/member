@@ -4,7 +4,7 @@ const http=require("node:http");
 const {readFile}=require("node:fs/promises");
 const path=require("node:path");
 const PROJECT="g2-member-test";
-const routes={memberLineLogin:(s,u,d)=>s.exchange(d.idToken),memberRegister:(s,u,d)=>s.register(u,d),memberAddPoints:(s,u,d)=>s.addPoints(u,d),memberOpenMonth:(s,u,d)=>s.openMonth(u,d.month),memberCloseMonth:(s,u,d)=>s.closeMonth(u,d.month),memberRedeemReward:(s,u,d)=>s.redeem(u,d),memberSetStaff:(s,u,d)=>s.setStaff(u,d)};
+const routes={memberSession:(s,u)=>s.session(u),memberLineLogin:(s,u,d)=>s.exchange(d.idToken),memberRegister:(s,u,d)=>s.register(u,d),memberAddPoints:(s,u,d)=>s.addPoints(u,d),memberOpenMonth:(s,u,d)=>s.openMonth(u,d.month),memberCloseMonth:(s,u,d)=>s.closeMonth(u,d.month),memberRedeemReward:(s,u,d)=>s.redeem(u,d),memberSetStaff:(s,u,d)=>s.setStaff(u,d)};
 function validateConfig(env){
   if(env.G2_MEMBER_ENABLED!=="false"||env.G2_FIREBASE_PROJECT_ID!==PROJECT||env.FIRESTORE_EMULATOR_HOST||env.FIREBASE_AUTH_EMULATOR_HOST)throw Error("Sandbox isolation required");
   if(!/^https:\/\/[a-z0-9-]+\.onrender\.com$/.test(env.G2_MEMBER_API_ORIGIN||""))throw Error("Canonical Render origin required");
@@ -97,6 +97,13 @@ function start(env=process.env){
     server.once("listening",()=>require("./render-rehearsal").runRehearsal({db:testApp.firestore(),auth,FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,env,port:server.address().port})
       .then(result=>console.log("G2_TEST_REHEARSAL "+JSON.stringify(result)))
       .catch(e=>console.error("G2_TEST_REHEARSAL "+JSON.stringify({state:"failed",runId:env.G2_TEST_REHEARSAL_RUN_ID,errorCode:String(e.code||e.name||"unknown").slice(0,80)}))));
+  }
+  if(env.G2_TEST_RELEASE_RUN_ID){
+    if(!credential)throw Error("Connected test credentials required");
+    const admin=require("firebase-admin"),testApp=admin.app("render-test");
+    server.once("listening",()=>require("./release-rehearsal").runReleaseRehearsal({db:testApp.firestore(),auth,FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,Timestamp:admin.firestore.Timestamp,GeoPoint:admin.firestore.GeoPoint,env})
+      .then(result=>console.log("G2_RELEASE_REHEARSAL "+JSON.stringify(result)))
+      .catch(e=>console.error("G2_RELEASE_REHEARSAL "+JSON.stringify({state:"failed",runId:env.G2_TEST_RELEASE_RUN_ID,errorCode:String(e.code||e.name||"unknown"),message:String(e.message||"").slice(0,250)}))));
   }
   return server;
 }

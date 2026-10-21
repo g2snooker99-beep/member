@@ -18,6 +18,7 @@ function callable(fn){return onCall({region:"asia-southeast1",timeoutSeconds:540
 });}
 exports.memberLineLogin=callable((s,u,d)=>s.exchange(d.idToken));
 exports.memberRegister=callable((s,u,d)=>s.register(u,d));
+exports.memberSession=callable((s,u)=>s.session(u));
 exports.memberAddPoints=callable((s,u,d)=>s.addPoints(u,d));
 exports.memberOpenMonth=callable((s,u,d)=>s.openMonth(u,d.month));
 exports.memberCloseMonth=callable((s,u,d)=>s.closeMonth(u,d.month));

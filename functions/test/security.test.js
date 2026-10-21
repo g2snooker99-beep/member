@@ -141,11 +141,11 @@ test("only admin can assign/revoke staff; no self or admin escalation",async()=>
 });
 test("reward redemption next month only; duplicate cannot redeem twice",async()=>{
   await seed();const rewardId="2026-10_"+U+"_discount10";
-  await db.collection("monthlyRewards").doc(rewardId).set({userId:U,monthKey:"2026-10",status:"available"});
-  await assert.rejects(service.redeem(S,{rewardId}),{code:"failed-precondition"});
+  await db.collection("monthlyRewards").doc(rewardId).set({userId:U,monthKey:"2026-10",type:"discount10",status:"available"});
+  await assert.rejects(service.redeem(S,{rewardId,billRef:"TEST-BILL-1"}),{code:"failed-precondition"});
   clock=new Date("2026-11-01T00:00:00Z");
-  assert.equal((await service.redeem(S,{rewardId})).duplicate,false);
-  assert.equal((await service.redeem(S,{rewardId})).duplicate,true);
+  assert.equal((await service.redeem(S,{rewardId,billRef:"TEST-BILL-1"})).duplicate,false);
+  assert.equal((await service.redeem(S,{rewardId,billRef:"TEST-BILL-1"})).duplicate,true);
 });
 test("manual request cannot slide into a new month",async()=>{
   await seed();clock=new Date("2026-11-01T00:00:00Z");
@@ -179,4 +179,22 @@ test("forged legacy staff/admin roles cannot enter the secure system",async()=>{
     await assertFails(getDoc(doc(client,"users",U)));
   }
   await assertFails(setDoc(doc(client,"memberStaffAccess",OTHER),{role:"admin",enabled:true}));
+});
+test("release scenarios: Top3, resumed close, rewards and encrypted restore",async()=>{
+  await seed();const {randomUUID}=require("node:crypto"),runId=randomUUID(),root=db.collection("releaseRehearsals").doc(runId);
+  const scoped={collection:n=>root.collection(n),runTransaction:fn=>db.runTransaction(fn)};
+  const result=await require("../release-scenarios").releaseScenarios({db:scoped,root,physicalDb:db,FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,Timestamp:admin.firestore.Timestamp,GeoPoint:admin.firestore.GeoPoint,runId});
+  assert.equal(result.checks.length,5);assert.equal(result.backupSha256,result.restoreSha256);
+});
+test("rules deny reward forgery, consumed reward changes, deletions and private receipts",async()=>{
+  await seed();const client=env.authenticatedContext(U,{role:"admin"}).firestore(),staff=env.authenticatedContext(S).firestore();
+  await db.collection("monthlyRewards").doc("own").set({userId:U,status:"used"});
+  await assertSucceeds(getDoc(doc(client,"monthlyRewards","own")));
+  for(const path of ["monthlyRewards/own","rewardRedemptions/own","rewardBillClaims/own","memberAudit/own","sandboxMembers/own","posPointAwards/own","memberStaffAccess/"+U]){
+    await assertFails(setDoc(doc(client,path),{userId:U,status:"available",role:"admin",enabled:true}));
+    await assertFails(setDoc(doc(staff,path),{userId:U,status:"available",role:"admin",enabled:true}));
+  }
+  await assertFails(getDoc(doc(client,"users",OTHER)));
+  await db.collection("users").doc(S).update({isActive:false});
+  await assertFails(getDoc(doc(staff,"users",U)));
 });

@@ -38,22 +38,31 @@ function buildService({db,auth,FieldValue,FieldPath,channelId,ownerUid,verifyLin
       return {memberId};
     });
   }
+  async function session(uid){
+    if(!UID.test(uid||""))fail("unauthenticated","LINE sign-in required");
+    const user=await db.collection("users").doc(uid).get();
+    if(!user.exists)return {registered:false,capabilities:{staff:false,admin:false}};
+    let staff=false,admin=false;
+    try{const s=await identity(uid,["staff","admin"]);staff=true;admin=s.data().role==="admin";}catch(e){if(e.code!=="permission-denied")throw e;}
+    return {registered:true,active:user.data().isActive===true,capabilities:{staff,admin}};
+  }
   async function addPoints(uid,d){
-    if(d.monthId!==monthAt(now()))fail("failed-precondition","Manual request month expired");
+    if(!MONTH.test(d.monthId||""))fail("invalid-argument","Invalid request month");
     if(!UID.test(d.userId||"")||!/^[a-f0-9-]{36}$/i.test(d.requestId||"")||!Number.isInteger(d.points)||d.points<1||d.points>3)fail("invalid-argument","Member, UUID and 1–3 points required");
-    const month=monthAt(now()),fingerprint=createHash("sha256").update(JSON.stringify([uid,d.userId,d.points,month])).digest("hex");
+    const month=d.monthId,fingerprint=createHash("sha256").update(JSON.stringify([uid,d.userId,d.points,month])).digest("hex");
     const receipt=db.collection("pointTransactions").doc("manual_"+d.requestId),ref=db.collection("users").doc(d.userId),gate=db.collection("posAwardMonths").doc(month);
     return db.runTransaction(async tx=>{
       await identity(uid,["staff","admin"],tx);
       if(sandboxOnly){const test=await tx.get(db.collection("sandboxMembers").doc(d.userId));if(!test.exists||test.data().dummyOnly!==true||test.data().enabled!==true)fail("permission-denied","Approved dummy members only");}
       const [r,m,g]=await Promise.all([tx.get(receipt),tx.get(ref),tx.get(gate)]);
       if(r.exists){if(r.data().fingerprint!==fingerprint)fail("already-exists","Conflicting retry");return {duplicate:true};}
+      if(month!==monthAt(now()))fail("failed-precondition","Manual request month expired; no points recorded");
       if(!g.exists||g.data().state!=="open")fail("failed-precondition","Month is not open");
       if(!m.exists||m.data().role!=="member"||m.data().isActive!==true)fail("permission-denied","Active member required");
       const p=m.data();
       if(p.pointsMonth!==month&&p.monthlyPoints!==0)fail("failed-precondition","Previous balance needs close/migration");
       const points=p.pointsMonth===month?p.monthlyPoints:0;
-      if(!Number.isFinite(points)||points<0)fail("failed-precondition","Invalid balance");
+      if(!Number.isSafeInteger(points)||points<0||!Number.isSafeInteger(points+d.points))fail("failed-precondition","Invalid balance");
       tx.update(ref,{monthlyPoints:points+d.points,pointsMonth:month,updatedAt:stamp()});
       tx.set(db.collection("publicLeaderboard").doc(createHash("sha256").update(d.userId).digest("hex")),{nickname:p.nickname||"",points:points+d.points,monthId:month});
       tx.create(receipt,{userId:d.userId,staffId:uid,points:d.points,monthId:month,type:"add",source:"manual",fingerprint,createdAt:stamp(),timestamp:stamp()});
@@ -93,26 +102,32 @@ function buildService({db,auth,FieldValue,FieldPath,channelId,ownerUid,verifyLin
         if(g.data().state!=="closing")fail("failed-precondition","Close not active");
         if(s.exists||!u.exists||u.data().role!=="member")return;
         const p=u.data();if(!p.pointsMonth&&p.monthlyPoints>0)fail("failed-precondition","Legacy balance needs migration");
-        const points=p.pointsMonth===month?p.monthlyPoints:0;if(!Number.isFinite(points)||points<0)fail("failed-precondition","Invalid balance");
-        tx.create(target,{userId:row.id,nickname:p.nickname||"",memberId:p.memberId||"",points});
+        const points=p.pointsMonth===month?p.monthlyPoints:0;if(!Number.isSafeInteger(points)||points<0)fail("failed-precondition","Invalid balance");
+        tx.create(target,{userId:row.id,nickname:p.nickname||"",memberId:p.memberId||"",points,eligible:p.isActive===true});
         if(p.pointsMonth===month)tx.update(row.ref,{monthlyPoints:0,updatedAt:stamp()});
       });
       cursor=page.docs.at(-1);
     }
-    const leaders=await snapshots.orderBy("points","desc").orderBy(FieldPath.documentId()).limit(3).get();
-    const top3=leaders.docs.filter(d=>d.data().points>0).map((d,i)=>({...d.data(),rank:i+1}));
+    // Read past ineligible snapshots, preserving deterministic UID tie breaks.
+    const top3=[];cursor=null;
+    while(top3.length<3){
+      let q=snapshots.orderBy("points","desc").orderBy(FieldPath.documentId()).limit(100);if(cursor)q=q.startAfter(cursor);
+      const page=await q.get();if(page.empty)break;
+      for(const row of page.docs){const p=row.data();if(p.eligible===true&&p.points>0&&top3.length<3)top3.push({...p,rank:top3.length+1});}
+      if(page.docs.at(-1).data().points<=0)break;cursor=page.docs.at(-1);
+    }
     cursor=null;
     for(;;){
       let q=snapshots.orderBy(FieldPath.documentId()).limit(100);if(cursor)q=q.startAfter(cursor);
       const page=await q.get();if(page.empty)break;
       for(const row of page.docs){
         const p=row.data(),top=top3.find(x=>x.userId===p.userId);
-        if(!top&&p.points<15)continue;
+        if(p.eligible!==true||(!top&&p.points<15))continue;
         const type=top?"top"+top.rank:"discount10",reward=db.collection("monthlyRewards").doc(month+"_"+p.userId+"_"+type);
         await db.runTransaction(async tx=>{
           await identity(uid,["admin"],tx);const [g,r]=await Promise.all([tx.get(gate),tx.get(reward)]);
           if(g.data().state!=="closing")fail("failed-precondition","Close not active");
-          if(!r.exists)tx.create(reward,{userId:p.userId,monthKey:month,type,status:"available",createdAt:stamp()});
+          if(!r.exists)tx.create(reward,{userId:p.userId,monthKey:month,type,benefit:top?"limited_shirt":"discount_10_percent",status:"available",createdAt:stamp()});
         });
       }cursor=page.docs.at(-1);
     }
@@ -124,17 +139,34 @@ function buildService({db,auth,FieldValue,FieldPath,channelId,ownerUid,verifyLin
     });
   }
   async function redeem(uid,d){
-    if(typeof d.rewardId!=="string"||d.rewardId.length>150||d.rewardId.includes("/"))fail("invalid-argument","Invalid reward");
+    if(typeof d.rewardId!=="string"||!d.rewardId||d.rewardId.length>150||d.rewardId.includes("/"))fail("invalid-argument","Invalid reward");
+    const billRef=typeof d.billRef==="string"?d.billRef.trim().toUpperCase():"";
+    if(billRef&&!/^[A-Z0-9_-]{1,80}$/.test(billRef))fail("invalid-argument","Invalid bill reference");
     const ref=db.collection("monthlyRewards").doc(d.rewardId);
     return db.runTransaction(async tx=>{
       await identity(uid,["staff","admin"],tx);const r=await tx.get(ref);
       if(!r.exists)fail("invalid-argument","Reward missing");
       const reward=r.data();
-      if(reward.status==="used")return {duplicate:true};
+      if(!["top1","top2","top3","discount10"].includes(reward.type)||!UID.test(reward.userId||""))fail("failed-precondition","Invalid reward type or member");
+      if(reward.type==="discount10"&&!billRef)fail("invalid-argument","Bill reference required for discount");
+      if(reward.status==="used"){
+        if((reward.billRef||"")!==billRef)fail("already-exists","Reward already used with another bill/reference");
+        return {duplicate:true,status:"used",billRef:reward.billRef||"",type:reward.type};
+      }
+      const member=await tx.get(db.collection("users").doc(reward.userId));
+      if(!member.exists||member.data().isActive!==true||member.data().role!=="member")fail("permission-denied","Active member required");
+      if(sandboxOnly){const s=await tx.get(db.collection("sandboxMembers").doc(reward.userId));if(!s.exists||s.data().dummyOnly!==true||s.data().enabled!==true)fail("permission-denied","Approved dummy members only");}
       if(!MONTH.test(reward.monthKey||""))fail("failed-precondition","Invalid reward month");
       const [year,month]=reward.monthKey.split("-").map(Number),next=new Date(Date.UTC(year,month,1));
       if(reward.status!=="available"||monthAt(next)!==monthAt(now()))fail("failed-precondition","Reward expired or not active");
-      tx.update(ref,{status:"used",usedAt:stamp(),usedBy:uid});return {duplicate:false};
+      const audit=db.collection("rewardRedemptions").doc(d.rewardId);
+      const bill=reward.type==="discount10"?db.collection("rewardBillClaims").doc(createHash("sha256").update(billRef).digest("hex")):null;
+      const [prior,claimed]=await Promise.all([tx.get(audit),bill?tx.get(bill):Promise.resolve(null)]);
+      if(prior.exists||claimed?.exists)fail("already-exists","Reward or bill already redeemed");
+      tx.update(ref,{status:"used",usedAt:stamp(),usedBy:uid,billRef});
+      const receipt={rewardId:d.rewardId,userId:reward.userId,type:reward.type,billRef,usedBy:uid,usedAt:stamp()};
+      tx.create(audit,receipt);if(bill)tx.create(bill,receipt);
+      return {duplicate:false,status:"used",billRef,type:reward.type};
     });
   }
   async function setStaff(uid,d){
@@ -149,6 +181,6 @@ function buildService({db,auth,FieldValue,FieldPath,channelId,ownerUid,verifyLin
       return {updated:true};
     });
   }
-  return {exchange,register,addPoints,openMonth,closeMonth,redeem,setStaff,identity};
+  return {exchange,register,session,addPoints,openMonth,closeMonth,redeem,setStaff,identity};
 }
 module.exports={buildService,monthAt};
