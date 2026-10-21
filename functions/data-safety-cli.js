@@ -31,6 +31,7 @@ async function main(args=process.argv.slice(2),env=process.env){
     const b=safety.unseal(await fs.readFile(input,"utf8"),key);
     if(command==="migration-plan"){
       if(b.sourceProject!=="member-3e17e")throw Error("Production inventory backup required; never promote test backup");
+      if(b.consistentWithPausedWriters!==true)throw Error("Final release backup with paused writers required; a read-only checkpoint cannot authorize migration");
       const rows=b.records.map(r=>({path:r.path,data:safety.decode(r.data,{Timestamp:admin.firestore.Timestamp,GeoPoint:admin.firestore.GeoPoint,db})}));
       const {planMigration,planRewardMigration,planHistoryMigration}=require("./migration-plan");
       const plan=planMigration({members:rows.filter(r=>/^users\/[^/]+$/.test(r.path)).map(r=>({id:r.path.split("/")[1],data:r.data})),monthId:env.G2_MIGRATION_BALANCE_MONTH,ownerUid:env.MEMBER_OWNER_LINE_UID,approvedStaff:(env.G2_APPROVED_STAFF_UIDS||"").split(",").filter(Boolean)});
