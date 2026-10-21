@@ -29,7 +29,7 @@ function decode(v,{Timestamp,GeoPoint,db}){
   if(t==="number")return x==="-0"?-0:Number(x);
   if(t==="bytes")return Buffer.from(x,"base64");
   if(t==="timestamp")return new Timestamp(x,y);
-  if(t==="geopoint")return new GeoPoint(x,y);
+  if(t==="geopoint")return new GeoPoint(Number(x),Number(y));
   if(t==="reference")return db.doc(validPath(x));
   if(t==="array")return x.map(a=>decode(a,{Timestamp,GeoPoint,db}));
   if(t==="map")return Object.fromEntries(x.map(([k,a])=>[k,decode(a,{Timestamp,GeoPoint,db})]));

@@ -13,12 +13,16 @@ function validateConfig(env){
   if(credential&&(credential.project_id!==PROJECT||!credential.client_email?.endsWith("@g2-member-test.iam.gserviceaccount.com")||credential.type!=="service_account"))throw Error("Test-only service account required");
   return credential;
 }
-function createHandler({service,auth,origin,publicConfig=null,clock=Date.now,posReceiver=null,posKey=""}){
+function createHandler({service,auth,origin,publicConfig=null,clock=Date.now,posReceiver=null,posKey="",privateRestore=null}){
   const buckets=new Map();
   function send(res,code,data){res.writeHead(code,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"});res.end(JSON.stringify(data));}
   return async(req,res)=>{
     res.setHeader("Referrer-Policy","no-referrer");res.setHeader("X-Frame-Options","DENY");
     const url=new URL(req.url,"http://localhost");
+    if(url.pathname==="/internal/private-restore"){
+      if(!privateRestore)return send(res,404,{error:"not-found"});
+      return privateRestore.handler(req,res);
+    }
     if(url.pathname.startsWith("/internal/pos/")){
       const action=url.pathname.slice("/internal/pos/".length);
       if(req.method!=="POST"||!["member","month","receipt","apply"].includes(action))return send(res,404,{error:"not-found"});
@@ -81,7 +85,13 @@ function start(env=process.env){
   if(env.G2_TEST_FIREBASE_WEB_CONFIG_JSON&&env.G2_TEST_LIFF_ID){const firebase=JSON.parse(env.G2_TEST_FIREBASE_WEB_CONFIG_JSON);if(firebase.projectId!==PROJECT)throw Error("Wrong browser Firebase project");publicConfig={firebase,liffId:env.G2_TEST_LIFF_ID,backendUrl:env.G2_MEMBER_API_ORIGIN};}
   let posReceiver=null;
   if(env.G2_TEST_POS_SHARED_KEY){if(env.G2_TEST_POS_SHARED_KEY.length<40||!credential)throw Error("Secure sandbox POS configuration required");const admin=require("firebase-admin");posReceiver=require("./pos-receiver").buildPosReceiver({db:admin.app("render-test").firestore(),FieldValue:admin.firestore.FieldValue});}
-  const server=http.createServer(createHandler({service,auth,origin:env.G2_MEMBER_API_ORIGIN,publicConfig,posReceiver,posKey:env.G2_TEST_POS_SHARED_KEY||""}));
+  let privateRestore=null;
+  if(env.G2_TEST_PRIVATE_RESTORE_RUN_ID){
+    if(!credential)throw Error("Connected test credentials required");
+    const admin=require("firebase-admin"),testApp=admin.app("render-test");
+    privateRestore=require("./private-restore").buildPrivateRestore({db:testApp.firestore(),FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,Timestamp:admin.firestore.Timestamp,GeoPoint:admin.firestore.GeoPoint,env});
+  }
+  const server=http.createServer(createHandler({privateRestore,service,auth,origin:env.G2_MEMBER_API_ORIGIN,publicConfig,posReceiver,posKey:env.G2_TEST_POS_SHARED_KEY||""}));
   server.requestTimeout=15000;server.headersTimeout=10000;server.listen(Number(env.PORT||10000),"0.0.0.0");
   process.on("SIGTERM",()=>{server.close(()=>process.exit(0));setTimeout(()=>process.exit(1),25000).unref();});
   if(env.G2_TEST_BROWSER_MEMBER_UID||env.G2_TEST_BROWSER_APPROVAL_ID){
