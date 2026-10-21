@@ -94,7 +94,7 @@ async function releaseScenarios({db,root,FieldValue,FieldPath,Timestamp,GeoPoint
   assert.equal(member.monthlyPoints,23);assert.equal(member.memberId,"MEMBER-OLD");assert.equal(member.lifetimeHours,8);
   assert.equal((await legacy.collection("users").doc(A).get()).data().monthlyPoints,17);
   const used=(await legacy.collection("monthlyRewards").doc("old-used").get()).data();assert.equal(used.status,"used");assert.equal(used.unknown,"keep");
-  const event=(await legacy.collection("pointTransactions").doc("old-event").get()).data();assert.equal(event.points,7);assert.equal(event.timestamp.nanoseconds,123456789);assert.equal(event.createdAt.nanoseconds,123456789);
+  const event=(await legacy.collection("pointTransactions").doc("old-event").get()).data();assert.equal(event.points,7);const originalEvent=safety.decode(original.records.find(r=>r.path==="pointTransactions/old-event").data,{Timestamp,GeoPoint,db:physicalDb});assert.equal(event.timestamp.nanoseconds,originalEvent.timestamp.nanoseconds);assert.equal(event.createdAt.nanoseconds,originalEvent.timestamp.nanoseconds);
   const board=await legacy.collection("publicLeaderboard").get();assert.equal(board.size,1);assert.equal(board.docs[0].data().points,23);
   checks.push("additive_migration_preserves_member_ids_scores_history_rewards_and_retry");
 
