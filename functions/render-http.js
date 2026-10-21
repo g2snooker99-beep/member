@@ -13,13 +13,24 @@ function validateConfig(env){
   if(credential&&(credential.project_id!==PROJECT||!credential.client_email?.endsWith("@g2-member-test.iam.gserviceaccount.com")||credential.type!=="service_account"))throw Error("Test-only service account required");
   return credential;
 }
-function createHandler({service,auth,origin,publicConfig=null,clock=Date.now}){
+function createHandler({service,auth,origin,publicConfig=null,clock=Date.now,posReceiver=null,posKey=""}){
   const buckets=new Map();
   function send(res,code,data){res.writeHead(code,{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"});res.end(JSON.stringify(data));}
   return async(req,res)=>{
     res.setHeader("Referrer-Policy","no-referrer");res.setHeader("X-Frame-Options","DENY");
     const url=new URL(req.url,"http://localhost");
-    if(req.method==="GET"&&url.pathname==="/health")return send(res,200,{projectId:PROJECT,awardsEnabled:false,backendReady:!!service});
+    if(url.pathname.startsWith("/internal/pos/")){
+      const action=url.pathname.slice("/internal/pos/".length);
+      if(req.method!=="POST"||!["member","month","receipt","apply"].includes(action))return send(res,404,{error:"not-found"});
+      if(!posReceiver)return send(res,503,{error:"unavailable"});
+      try{
+        let body="";for await(const chunk of req){body+=chunk;if(Buffer.byteLength(body)>16384)return send(res,413,{error:"invalid-argument"});}
+        if(!require("./pos-receiver").verifySignature({key:posKey,path:url.pathname,body,timestamp:req.headers["x-g2-timestamp"],signature:req.headers["x-g2-signature"],now:clock()}))return send(res,401,{error:"unauthenticated"});
+        const data=JSON.parse(body);if(!data||typeof data!=="object"||Array.isArray(data))return send(res,400,{error:"invalid-argument"});
+        return send(res,200,{data:await posReceiver[action](action==="member"?data.uid:action==="month"?data.month:data.item)});
+      }catch(e){const codes={"invalid-argument":400,"permission-denied":403,"failed-precondition":409,"already-exists":409};return send(res,codes[e.code]||503,{error:codes[e.code]?e.code:"unavailable"});}
+    }
+    if(req.method==="GET"&&url.pathname==="/health")return send(res,200,{projectId:PROJECT,awardsEnabled:false,backendReady:!!service,posBackendReady:!!posReceiver});
     if(req.method==="GET"&&url.pathname==="/config.js"){
       res.writeHead(200,{"Content-Type":"application/javascript; charset=utf-8","Cache-Control":"no-store"});return res.end("window.G2_MEMBER_CONFIG="+JSON.stringify(publicConfig||{firebase:null,liffId:""})+";");
     }
@@ -68,7 +79,9 @@ function start(env=process.env){
   }
   let publicConfig=null;
   if(env.G2_TEST_FIREBASE_WEB_CONFIG_JSON&&env.G2_TEST_LIFF_ID){const firebase=JSON.parse(env.G2_TEST_FIREBASE_WEB_CONFIG_JSON);if(firebase.projectId!==PROJECT)throw Error("Wrong browser Firebase project");publicConfig={firebase,liffId:env.G2_TEST_LIFF_ID,backendUrl:env.G2_MEMBER_API_ORIGIN};}
-  const server=http.createServer(createHandler({service,auth,origin:env.G2_MEMBER_API_ORIGIN,publicConfig}));
+  let posReceiver=null;
+  if(env.G2_TEST_POS_SHARED_KEY){if(env.G2_TEST_POS_SHARED_KEY.length<40||!credential)throw Error("Secure sandbox POS configuration required");const admin=require("firebase-admin");posReceiver=require("./pos-receiver").buildPosReceiver({db:admin.app("render-test").firestore(),FieldValue:admin.firestore.FieldValue});}
+  const server=http.createServer(createHandler({service,auth,origin:env.G2_MEMBER_API_ORIGIN,publicConfig,posReceiver,posKey:env.G2_TEST_POS_SHARED_KEY||""}));
   server.requestTimeout=15000;server.headersTimeout=10000;server.listen(Number(env.PORT||10000),"0.0.0.0");
   process.on("SIGTERM",()=>{server.close(()=>process.exit(0));setTimeout(()=>process.exit(1),25000).unref();});
   if(env.G2_TEST_REHEARSAL_RUN_ID){

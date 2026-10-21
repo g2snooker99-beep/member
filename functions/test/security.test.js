@@ -27,6 +27,20 @@ before(async()=>{
   service=buildService({db,auth:{createCustomToken:async uid=>"test:"+uid},FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,channelId:"1234567890",ownerUid:A,now:()=>clock,verifyLine:async()=>{if(offline)throw Error("LINE unavailable");return claims;}});
 });
 after(async()=>{await env?.cleanup();await admin.app().delete();});
+test("POS receiver atomically grants 37 once, blocks old trial and closed month",async()=>{
+  await seed();await db.collection("sandboxMembers").doc(U).set({dummyOnly:true,enabled:true});
+  const receiver=require("../pos-receiver").buildPosReceiver({db,FieldValue:admin.firestore.FieldValue,now:()=>clock});
+  const item={bill_id:987654321,line_user_id:U,month_id:"2026-10",points:37,eligible_hours:18,bill_no:"NEW-DUMMY-PAID-987654321",checkout_at:clock.toISOString()};
+  await Promise.all([receiver.apply(item),receiver.apply(item)]);
+  assert.equal((await db.collection("users").doc(U).get()).data().monthlyPoints,37);
+  assert.equal(await receiver.receipt(item),true);
+  await assert.rejects(receiver.apply({...item,points:38}),{code:"already-exists"});
+  await assert.rejects(receiver.apply({...item,bill_no:"B261021015307"}),{code:"permission-denied"});
+  await db.collection("posAwardMonths").doc("2026-10").update({state:"closed"});
+  assert.equal(await receiver.receipt(item),true);
+  await assert.rejects(receiver.apply({...item,bill_id:987654322}),{code:"failed-precondition"});
+  assert.equal((await db.collection("users").doc(U).get()).data().monthlyPoints,37);
+});
 test("Render HTTP custom login to real Auth/Firestore emulators, duplicate grant and revoked staff",async()=>{
   await seed();
   const {createHandler}=require("../render-http"),http=require("node:http");

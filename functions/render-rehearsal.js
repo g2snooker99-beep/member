@@ -11,6 +11,15 @@ async function runRehearsal({db,auth,FieldValue,FieldPath,env,port}){
   assert.match(runId||"",/^[a-f0-9-]{36}$/);
   assert.ok(!env.FIRESTORE_EMULATOR_HOST&&!env.FIREBASE_AUTH_EMULATOR_HOST);
   const receipt=db.collection("renderRehearsals").doc(runId);
+  // Provision a different zero-balance fixture for the actual POS pipeline;
+  // a completed manual rehearsal is not repeated on a later deployment.
+  const posUid="U"+createHash("sha256").update(runId+"posMember").digest("hex").slice(0,32);
+  await db.runTransaction(async tx=>{
+    const ref=db.collection("users").doc(posUid),old=await tx.get(ref);
+    if(old.exists){assert.equal(old.data().testRunId,runId);return;}
+    tx.create(ref,{userId:posUid,memberId:"TEST-POS-"+posUid.slice(1),nickname:"POS DUMMY ONLY",phone:"0800000000",role:"member",isActive:true,monthlyPoints:0,lifetimeHours:0,pointsMonth:monthAt(new Date()),testRunId:runId,createdAt:FieldValue.serverTimestamp()});
+    tx.create(db.collection("sandboxMembers").doc(posUid),{dummyOnly:true,enabled:true,testRunId:runId});
+  });
   if((await receipt.get()).data()?.state==="passed")return {state:"passed",runId,alreadyCompleted:true};
   const stamp=()=>FieldValue.serverTimestamp(),checks=[];
   const uid=kind=>"U"+createHash("sha256").update(runId+kind).digest("hex").slice(0,32);
