@@ -1,63 +1,45 @@
-# Secure Member implementation and deployment hold
+# G2 Member release status — 2026-10-21
 
-The feature branch now contains executable LINE-to-Firebase custom login,
-server-authorized staff grants and revocation, idempotent manual points,
-resumable monthly lock/snapshot/rewards, and reward redemption restricted to
-the following Bangkok month. All client writes are denied. Current server
-roles are read in each privileged transaction, so old token claims cannot
-preserve revoked staff access.
+## Verified cloud evidence
 
-`firebase.json` now selects the secure client and rules. Existing legacy
-`public/` pages remain source history only; they must never be redeployed.
-Secure client configuration is intentionally empty: fill in an isolated test
-Firebase project and test LIFF before any cloud deployment. No live Firebase
-deployment has been performed in this task.
+Verified against Render application logs and staging PostgreSQL, without repeating completed tests. Test run: `35b990d5-1a95-44da-bb10-08936cf8eb56`. All recipients are synthetic fixtures in `g2-member-test`.
 
-## Verified evidence
+Render Member rehearsal passed:
+- Real Firebase custom-token sign-in and ID-token verification.
+- Forged administrator role rejected; revoked staff immediately rejected.
+- Real HTTP grants total 37 points; concurrent requests and subsequent replay retain 37 points.
+- Actual Firestore rules reject direct client point edits.
+- Isolated month-close fixture: reset, repeat close, and retrospective award/reopen rejection.
+- Restart recognizes the completed receipt and does not repeat awards.
 
-- Initial Member emulator run: 9/9 security/auth/transaction/month-close tests.
-- POS CI: 242 discovered Python tests, 202 executed/40 intentionally skipped
-  in the dependency-light job; 11/11 JavaScript checks.
-- Disposable PostgreSQL: 35/35 integration tests.
-- Actual Firestore emulator + PostgreSQL: 5/5 tests, including two workers,
-  Firebase outage, lost acknowledgement followed by month closure, closed
-  month rejection, and an injected historic trial bill.
-- All emulator tests use `demo-g2-member`, dummy users and no cloud credentials.
-- Render staging public configuration confirms `awards_enabled=false`.
-- Staging PostgreSQL real-award outbox is empty. Historic trial bill
-  `B261021015307` is present and permanently rejected by producer and worker.
-- Staging outbox does not yet contain migration 003 delivery columns.
+POS staging rehearsal passed, confirmed independently in `g2_sandbox_rehearsals`:
+- Actual Flask open-table and staff-authorized QR routes.
+- Synthetic member enrollment through the trusted round store, including duplicate join rejection.
+- Actual paid checkout while the receiver transport is deliberately unavailable.
+- PostgreSQL retains the pending award.
+- Real Firestore commit followed by deliberately lost acknowledgement; retry retains one award.
+- Checkout invalidates the QR.
+- New dummy bill `B261021072126`, table 11, one eligible hour, final balance 1 point.
+- Queue currently has one delivered row. No venue notifications were sent by this rehearsal.
 
-Follow-up CI adds explicit staff assignment/revocation, reward redemption and
-paid-checkout reconciliation tests; inspect the latest branch Actions result.
+These are actual PostgreSQL and Firebase cloud operations. Outage and lost acknowledgement are deliberate transport fault injections, not an actual Firebase service outage. Enrollment was programmatic: this does not establish camera scanning or real LINE browser login.
 
-## Required connections and unfinished release gates
+Member Render service is live at commit `5f61c9d23df6a6370746d607563c496590810ccc`. The latest deployment is `dep-dbc6gqhsrm7s73fqkvfg`.
 
-1. Sign into Firebase Console with access to `member-3e17e`. Verify actual
-   deployed rules, IAM, Auth and functions; current browser stops at Google
-   sign-in. No service-account credentials were requested or exposed.
-2. Provide a separate cloud Firebase test project, test LIFF/LINE Login
-   channel, and dedicated least-privilege identities. Emulator success does
-   not establish cloud IAM/custom-token signing/LINE browser success.
-3. Back up Member data/rules, map legacy nonzero `monthlyPoints` to an explicit
-   `pointsMonth`, and verify restore. New code refuses to silently discard
-   legacy/unclosed balances. Confirm the owner/admin role from trusted data.
-4. Retire or migrate every legacy monthly reset/reward writer from the POS
-   functions codebase. Deploying an additional codebase does not remove them.
-   The new scheduler runs at 00:05 Bangkok on the first day, using a configured
-   active admin UID; absent configuration fails closed.
-5. Apply additive outbox migration 003 only to the verified test database;
-   inject/schedule approved checkout reconciler and delivery worker with the
-   dedicated writer. Production automatic delivery remains unwired/off.
-6. Complete browser LINE login, camera QR scan workflow, checkout cancellation/
-   editing/moving/merging regressions, paid-source revalidation at delivery,
-   monitoring, backup/restore and rollback before release. The secure client now supports camera scanning, reward QR and a current
-   public leaderboard projection; real browser/camera acceptance remains pending.
+## Remaining acceptance gates
 
-## Owner approval reserved
+1. Real test-account LINE LIFF browser login through LINE verification to Firebase Authentication; then registration and real QR-camera enrollment. The available browser controller currently reports a session mismatch when opening the test site, so no browser acceptance is claimed.
+2. Verify test owner bootstrap from independently verified LINE identity; exercise actual admin/staff browser flows and reward redemption.
+3. Complete checkout cancellation/edit/move/merge regression acceptance and confirm production timestamp handling.
+4. Back up production Member data, rules and configuration; rehearse restore and explicitly migrate legacy balances to their correct month without dropping points.
+5. Retire every legacy Admin SDK reset/reward writer. Roll out secure frontend and Firestore rules together only after approval; do not deploy rules alone against legacy pages.
+6. Establish continuously scheduled production queue delivery, monitoring and recovery; free Render idle services are not a production worker guarantee.
+7. Recheck feature-branch CI for final release commits. Previous emulator/CI evidence remains separate from cloud/browser acceptance.
 
-Only after every gate passes: approve coordinated Firebase rollout, POS
-Production/main release, and changing `G2_MEMBER_ENABLED` to true. This task
-does not grant that approval. Never import preview drafts or the 37-point
-trial bill into a real award queue. Production/main and customer scores were
-not modified by this task.
+## Production hold and rollback
+
+Do not change POS Production/main, enable `G2_MEMBER_ENABLED=true`, write customer points, or change `member-3e17e` rules without explicit owner approval. Historic trial bill `B261021015307` remains excluded and must never be imported from previews.
+
+For the eventual approved rollout: record deployment/configuration versions and backup/restore evidence first; stop legacy monthly writers; deploy the coordinated secure member frontend/backend/rules; verify read-only and synthetic canary behavior; approve activation separately. If canary or delivery checks fail, keep awards disabled, pause consumers, preserve outbox/receipts and restore compatible application/configuration versions. Do not delete receipts or replay all bills: reconcile by immutable award IDs before resuming. Restore data only from a verified backup under a separately reviewed recovery procedure.
+
+This document records verified evidence and outstanding work; it is not production approval.
