@@ -2,7 +2,7 @@
 // Explicit opt-in cloud smoke test. Writes ONLY fixed dummy accounts in the
 // owner-created g2-member-test project. No production credentials or LINE calls.
 const assert=require("node:assert/strict");
-const {randomUUID}=require("node:crypto");
+const {randomUUID,createHash}=require("node:crypto");
 const admin=require("firebase-admin");
 const {buildService,monthAt}=require("./service");
 async function run(){
@@ -10,8 +10,9 @@ async function run(){
     throw Error("Explicit --run and GOOGLE_CLOUD_PROJECT=g2-member-test required; cloud test only");
   admin.initializeApp({projectId:"g2-member-test"});const db=admin.firestore();
   assert.equal(db.projectId||db.project,"g2-member-test");
-  const U="U"+"1".repeat(32),S="U"+"2".repeat(32),A="U"+"3".repeat(32),F="U"+"4".repeat(32);
   let clock=new Date();const month=monthAt(clock),runId=randomUUID();
+  const dummy=kind=>"U"+createHash("sha256").update(runId+kind).digest("hex").slice(0,32);
+  const U=dummy("member"),S=dummy("staff"),A=dummy("owner"),F=dummy("forged");
   const service=buildService({db,auth:{createCustomToken:()=>{throw Error("No real identity signing in smoke test");}},FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,ownerUid:A,channelId:"1234567890",verifyLine:()=>{throw Error("No LINE traffic");},now:()=>clock});
   for(const [uid,role] of [[U,"member"],[S,"staff"],[A,"admin"],[F,"admin"]])
     await db.collection("users").doc(uid).set({userId:uid,role,isActive:true,nickname:"G2 CLOUD TEST ONLY",phone:"0800000000",memberId:"TEST-"+uid.slice(1,5),monthlyPoints:0,lifetimeHours:0,pointsMonth:month});
