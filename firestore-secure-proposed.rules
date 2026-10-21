@@ -1,0 +1,57 @@
+// Proposed authenticated Member rules. NOT DEPLOYED.
+// WARNING: The current LINE LIFF pages do not yet sign in to Firebase Auth.
+// Deploy only after the custom-token login migration and admin/staff backend
+// paths are verified. Deploying this today would break current members.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    function roleIs(role) {
+      return signedIn() && request.auth.token.role == role;
+    }
+    function staffOrAdmin() {
+      return roleIs('staff') || roleIs('admin');
+    }
+    function memberSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+    match /users/{userId} {
+      allow get: if memberSelf(userId) || staffOrAdmin();
+      allow list: if staffOrAdmin();
+      allow create: if memberSelf(userId)
+        && request.resource.data.role == 'member'
+        && request.resource.data.monthlyPoints == 0
+        && request.resource.data.lifetimeHours == 0
+        && request.resource.data.isActive == true
+        && request.resource.data.userId == userId
+        && request.resource.data.pointsMonth == null;
+      // Members can edit profile attributes only, not roles or balances.
+      allow update: if memberSelf(userId)
+        && request.resource.data.diff(resource.data)
+          .affectedKeys().hasOnly(['nickname', 'phone', 'pictureUrl', 'updatedAt']);
+      allow delete: if false;
+    }
+    // All points, award ledger and month lifecycle writes require a trusted
+    // server-side Admin SDK (which bypasses these client rules).
+    match /pointTransactions/{id} {
+      allow get, list: if staffOrAdmin() ||
+        (signedIn() && resource.data.userId == request.auth.uid);
+      allow create, update, delete: if false;
+    }
+    match /posPointAwards/{id} {
+      allow read, write: if false;
+    }
+    match /posAwardMonths/{monthId} {
+      allow read, write: if false;
+    }
+    match /seasonResults/{id} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
