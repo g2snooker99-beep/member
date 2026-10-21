@@ -1,0 +1,2 @@
+"use strict";const {test}=require("node:test"),assert=require("node:assert/strict"),{requireMutationGate}=require("../release-controls");
+test("production member writes remain off until explicit activation",()=>{for(const value of [undefined,null,false,true,"false","TRUE","1",""])assert.throws(()=>requireMutationGate(value),{code:"failed-precondition"});assert.doesNotThrow(()=>requireMutationGate("true"));});
