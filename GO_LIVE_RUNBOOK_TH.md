@@ -30,7 +30,7 @@
 - รับรองรายชื่อผู้มีอำนาจเดิม 7 บัญชีใหม่ทีละคน; ไม่ยก role ทั้งหมดเข้า ACL
 - ยืนยัน backend สำหรับระบบจริง: Cloud Functions codebase `secure-member` มีโค้ดพร้อม แต่ต้องตรวจสิทธิ์การ deploy/แผน Firebase ที่รองรับก่อน อาจต้องอนุมัติการเปลี่ยนแผนและค่าใช้จ่าย
 - ยืนยัน worker จริงที่ทำงานต่อเนื่องและฐานข้อมูล POS จริง ห้ามเปลี่ยน host/database ของ staging ให้ชี้ production เพื่อหลบ guard
-- ต้องเตรียม release wiring สำหรับ POS จริงจากเวอร์ชัน Staging ที่ตรวจแล้ว; การตั้ง `G2_MEMBER_ENABLED=true` ใน staging เดิมจะถูกปฏิเสธโดยตั้งใจ
+- เตรียม release wiring แยกสำหรับ POS จริงแล้ว ดู member_integration/LIVE_RUNTIME_RELEASE.md ใน repo POS; ต้อง review commit/config ที่จะเปิดใช้หลังอนุมัติ; การตั้ง `G2_MEMBER_ENABLED=true` ใน staging เดิมจะถูกปฏิเสธโดยตั้งใจ
 - เลือกที่เก็บ backup ส่วนตัวนอก Render และที่เก็บกุญแจแยกต่างหาก พร้อมผู้รับผิดชอบและระยะเก็บ
 - ทดสอบเมนูพนักงาน/แอดมินด้วย LINE ของผู้มีสิทธิ์จริงก่อนเปิดให้ร้านใช้ หลักฐานอัตโนมัติปัจจุบันครอบคลุม DOM controller, HTTP/Auth และ Firestore; ไม่ใช่การรับรอง camera/browser ของแอดมินจริง
 
@@ -85,3 +85,8 @@ node data-safety-cli.js migration-plan <production-backup-file> <private-plan-fi
 - ที่เก็บ backup/กุญแจ, ช่วงหยุดเขียน และ hash ของ migration plan/backup
 - การจัดการ legacy writers และ backend/worker จริง รวมค่าใช้จ่ายที่เกี่ยวข้อง
 - ชุด deploy ที่ระบุ commit แน่นอนและการเปิด production mutation/award gates
+
+
+## รอบสำรอง checkpoint ที่ต้องขออนุมัติเพิ่ม
+
+ดู FOLLOWUP_PRODUCTION_PREP_TH.md: วิธีสำรองอ่านอย่างเดียวและ private restore เตรียมแล้ว แต่ automatic approval review ปฏิเสธการตั้ง encryption key/transfer token บน Render จนกว่าผู้ใช้จะอนุมัติปลายทาง/การเก็บกุญแจอย่างชัดเจน ไม่มีการเริ่มสำรองจริงหรืออ้อมข้อจำกัดนี้ การอนุมัติ checkpoint ไม่ใช่การอนุมัติ production migration หรือ deploy

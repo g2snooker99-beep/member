@@ -1,3 +1,5 @@
+> อัปเดตต่อเนื่อง: ดู [ผล Production wiring และขั้นสำรองที่รออนุมัติ](FOLLOWUP_PRODUCTION_PREP_TH.md) — โค้ด wiring เตรียมและทดสอบแล้ว แต่ยังไม่เปิดใช้งานจริง
+
 # G2 Member — ผลทดสอบ Staging 21 ตุลาคม 2026
 
 สถานะ: โค้ดส่วนสมาชิกและเครื่องมือย้ายข้อมูลอยู่ใน feature branches เท่านั้น ยังไม่ใช่การอนุมัติเปิด Production
@@ -46,7 +48,7 @@
 1. ต้องยืนยัน LINE UID ผู้ดูแลและรับรองบัญชีสิทธิ์เดิม 7 บัญชีใหม่
 2. ต้องสำรองข้อมูลจริงไว้ปลายทางส่วนตัวที่เลือก พร้อมกุญแจแยก และทดสอบ restore ของ backup จริงก่อน migration
 3. Production Rules ยังเป็นเวอร์ชันเดิมที่เคยพบช่องโหว่ และยังมี legacy Admin SDK writers; ต้องอนุมัติเปลี่ยนพร้อม frontend/backend ห้ามปล่อย Rules เดี่ยว ๆ
-4. ต้องจัดเตรียม production POS wiring/worker และยืนยัน runtime/backend ที่รองรับจริง; Render POS จริงปัจจุบันเป็น Starter แต่ staging integration ถูก guard ไม่ให้เปิดด้วยการสลับตัวแปรอย่างเดียว
+4. production POS wiring/worker เตรียมและทดสอบแล้วตามรายงานต่อเนื่อง แต่ต้องตั้งค่า production runtime/credential/manifest หลังอนุมัติ; Render POS จริงปัจจุบันเป็น Starter แต่ staging integration ถูก guard ไม่ให้เปิดด้วยการสลับตัวแปรอย่างเดียว
 5. จึงยังไม่ควรอนุมัติเปิดจริงเพียงเพราะ CI ผ่าน ต้องตรวจ release checklist และ commit ชุดสุดท้ายก่อน
 
 ไม่เคย Deploy Production/main, เปลี่ยน Rules จริง, reset/ลบแต้มสมาชิกจริง หรือย้ายคะแนนทดลองเข้าระบบจริงในงานนี้
