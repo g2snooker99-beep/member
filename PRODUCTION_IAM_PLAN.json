@@ -1,0 +1,58 @@
+{
+  "project": "member-3e17e",
+  "status": "prepared_only_no_IAM_changes",
+  "ownerCandidate": {
+    "uid": "U5cf38d4af2e9213edc24c204f1b995bf",
+    "memberId": "G2-501279",
+    "nickname": "A",
+    "authority": "Existing user context; do not grant until approved owner verification."
+  },
+  "identities": [
+    {
+      "email": "g2-member-api@member-3e17e.iam.gserviceaccount.com",
+      "runtime": "secure-member Cloud Functions",
+      "projectRoles": [
+        "roles/datastore.user",
+        "roles/firebaseauth.admin"
+      ],
+      "serviceAccountBindings": [
+        {
+          "resource": "g2-member-api@member-3e17e.iam.gserviceaccount.com",
+          "member": "serviceAccount:g2-member-api@member-3e17e.iam.gserviceaccount.com",
+          "role": "roles/iam.serviceAccountTokenCreator"
+        }
+      ],
+      "privateKeyRequired": false
+    },
+    {
+      "email": "g2-pos-award-writer@member-3e17e.iam.gserviceaccount.com",
+      "runtime": "Approved POS runtime",
+      "projectRoles": [
+        "roles/datastore.user"
+      ],
+      "privateKeyRequired": "Render secret only; never GitHub/chat/print credential"
+    },
+    {
+      "email": "g2-pos-staging-reader@member-3e17e.iam.gserviceaccount.com",
+      "runtime": "Read-only inventory",
+      "projectRoles": [
+        "roles/datastore.viewer"
+      ],
+      "writesAllowed": false
+    }
+  ],
+  "neverReuse": [
+    "legacy Editor service accounts",
+    "POS print-job identity",
+    "test-project key"
+  ],
+  "references": [
+    "https://firebase.google.com/docs/functions/manage-functions",
+    "https://firebase.google.com/docs/auth/admin/create-custom-tokens"
+  ],
+  "activation": {
+    "memberMutationsDefault": false,
+    "posAwardsDefault": false,
+    "requiresOwnerApproval": true
+  }
+}
