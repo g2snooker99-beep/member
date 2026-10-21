@@ -10,6 +10,8 @@ async function releaseScenarios({db,root,FieldValue,FieldPath,Timestamp,GeoPoint
   const profile=(id,role,points=0,active=true)=>({userId:id,memberId:"TEST-"+id,nickname:"RELEASE DUMMY "+id.slice(-2),phone:"0800000000",role,isActive:active,monthlyPoints:points,lifetimeHours:17.5,pointsMonth:"2026-10",testRunId:runId,unknownLegacy:{preserve:true},createdAt:new Timestamp(1700000000,123456789)});
   for(const [id,role] of [[A,"admin"],[S,"staff"]]){await db.collection("users").doc(id).create(profile(id,role));await db.collection("memberStaffAccess").doc(id).create({role,enabled:true});}
   for(let i=0;i<ids.length;i++)await db.collection("users").doc(ids[i]).create(profile(ids[i],"member",[30,25,25,15,999,9][i],i!==4));
+  await db.collection("users").doc(ids[2]).update({createdAt:new Timestamp(1600000000,0)});
+  await db.collection("users").doc(ids[0]).update({legacyReference:db.collection("users").doc(ids[1]),legacyBytes:Buffer.from([0,255]),legacyGeo:new GeoPoint(13.75,100.5)});
   await db.collection("posAwardMonths").doc("2026-10").create({state:"open"});
   await db.collection("posAwardMonths").doc("2026-11").create({state:"open"});
   assert.deepEqual((await service.session(S)).capabilities,{staff:true,admin:false});
@@ -32,7 +34,7 @@ async function releaseScenarios({db,root,FieldValue,FieldPath,Timestamp,GeoPoint
   await db.collection("users").doc(ids[0]).update({monthlyPoints:4,pointsMonth:"2026-11"});
   await assert.rejects(service.closeMonth(S,"2026-10"),{code:"permission-denied"});
   const result=await service.closeMonth(A,"2026-10");
-  assert.deepEqual(result.top3.map(x=>[x.userId,x.points]),[[ids[0],30],[ids[1],25],[ids[2],25]]);
+  assert.deepEqual(result.top3.map(x=>[x.userId,x.points]),[[ids[0],30],[ids[2],25],[ids[1],25]]);
   assert.equal((await service.closeMonth(A,"2026-10")).duplicate,true);
   assert.equal((await db.collection("users").doc(ids[0]).get()).data().monthlyPoints,4);
   assert.equal((await db.collection("users").doc(ids[0]).get()).data().lifetimeHours,17.5);

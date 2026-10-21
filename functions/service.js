@@ -103,19 +103,25 @@ function buildService({db,auth,FieldValue,FieldPath,channelId,ownerUid,verifyLin
         if(s.exists||!u.exists||u.data().role!=="member")return;
         const p=u.data();if(!p.pointsMonth&&p.monthlyPoints>0)fail("failed-precondition","Legacy balance needs migration");
         const points=p.pointsMonth===month?p.monthlyPoints:0;if(!Number.isSafeInteger(points)||points<0)fail("failed-precondition","Invalid balance");
-        tx.create(target,{userId:row.id,nickname:p.nickname||"",memberId:p.memberId||"",points,eligible:p.isActive===true});
+        tx.create(target,{userId:row.id,nickname:p.nickname||"",memberId:p.memberId||"",points,eligible:p.isActive===true,joinedAtMillis:p.createdAt?.toMillis?.()||0});
         if(p.pointsMonth===month)tx.update(row.ref,{monthlyPoints:0,updatedAt:stamp()});
       });
       cursor=page.docs.at(-1);
     }
-    // Read past ineligible snapshots, preserving deterministic UID tie breaks.
+    // Preserve the legacy tie rule (earlier registration), then UID as the
+    // deterministic final tie break. Read every tied row across page boundaries.
     const top3=[];cursor=null;
-    while(top3.length<3){
+    let finished=false;
+    while(!finished){
       let q=snapshots.orderBy("points","desc").orderBy(FieldPath.documentId()).limit(100);if(cursor)q=q.startAfter(cursor);
       const page=await q.get();if(page.empty)break;
-      for(const row of page.docs){const p=row.data();if(p.eligible===true&&p.points>0&&top3.length<3)top3.push({...p,rank:top3.length+1});}
+      for(const row of page.docs){
+        const p=row.data();if(top3.length===3&&p.points<top3[2].points){finished=true;break;}
+        if(p.eligible===true&&p.points>0){top3.push({...p});top3.sort((a,b)=>b.points-a.points||(a.joinedAtMillis||0)-(b.joinedAtMillis||0)||a.userId.localeCompare(b.userId,"en"));top3.splice(3);}
+      }
       if(page.docs.at(-1).data().points<=0)break;cursor=page.docs.at(-1);
     }
+    top3.forEach((p,i)=>p.rank=i+1);
     cursor=null;
     for(;;){
       let q=snapshots.orderBy(FieldPath.documentId()).limit(100);if(cursor)q=q.startAfter(cursor);

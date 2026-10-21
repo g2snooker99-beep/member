@@ -2,16 +2,19 @@
 // Offline toolkit. No default credentials, production writes, or overwrites.
 const {createCipheriv,createDecipheriv,randomBytes,createHash}=require("node:crypto");
 const sha=s=>createHash("sha256").update(s).digest("hex");
-function encode(v){
+function encode(v,referencePrefix=""){
   if(v===null)return ["null"];
   if(typeof v==="string"||typeof v==="boolean")return [typeof v,v];
   if(typeof v==="number")return ["number",Object.is(v,-0)?"-0":String(v)];
   if(Buffer.isBuffer(v)||v instanceof Uint8Array)return ["bytes",Buffer.from(v).toString("base64")];
   if(v&&Number.isInteger(v.seconds)&&Number.isInteger(v.nanoseconds)&&typeof v.toDate==="function")return ["timestamp",v.seconds,v.nanoseconds];
   if(v&&typeof v.latitude==="number"&&typeof v.longitude==="number")return ["geopoint",v.latitude,v.longitude];
-  if(v&&typeof v.path==="string"&&v.firestore)return ["reference",v.path];
-  if(Array.isArray(v))return ["array",v.map(encode)];
-  if(v&&Object.getPrototypeOf(v)===Object.prototype)return ["map",Object.entries(v).map(([k,x])=>[k,encode(x)])];
+  if(v&&typeof v.path==="string"&&v.firestore){
+    if(referencePrefix&&!v.path.startsWith(referencePrefix+"/"))return ["external-scope-reference",v.path];
+    return ["reference",referencePrefix?v.path.slice(referencePrefix.length+1):v.path];
+  }
+  if(Array.isArray(v))return ["array",v.map(x=>encode(x,referencePrefix))];
+  if(v&&Object.getPrototypeOf(v)===Object.prototype)return ["map",Object.entries(v).map(([k,x])=>[k,encode(x,referencePrefix)])];
   throw Error("Unsupported Firestore value; backup aborted");
 }
 function validPath(p,document=true){
@@ -53,7 +56,7 @@ async function exportData({root,sourceProject,collections,frozen=false}){
     // listDocuments also discovers missing ancestor documents with subcollections.
     for(const ref of await col.listDocuments()){
       const path=relative+"/"+ref.id,s=await ref.get();
-      if(s.exists){records.push({path,data:encode(s.data())});counts[path.split("/")[0]]=(counts[path.split("/")[0]]||0)+1;}
+      if(s.exists){records.push({path,data:encode(s.data(),root.path||"")});counts[path.split("/")[0]]=(counts[path.split("/")[0]]||0)+1;}
       for(const child of await ref.listCollections())await visit(child,path+"/"+child.id);
     }
   }
