@@ -19,3 +19,13 @@ test("legacy reward mapping preserves IDs, used state and unknown fields; duplic
   assert.equal(plan.ready,true);assert.equal(plan.updates[0].path,"monthlyRewards/legacy-shirt");assert.equal(plan.updates[0].patch.type,"top2");assert.equal(plan.updates[1].patch.status,"used");assert.equal(JSON.stringify(rewards),before);
   assert.equal(planRewardMigration([...rewards,{id:"duplicate",data:rewards[0].data}]).ready,false);
 });
+
+test("history projection preserves old document identity, points and timestamp",()=>{
+ const {planHistoryMigration}=require("../migration-plan");
+ class Timestamp{constructor(){this.seconds=1;this.nanoseconds=0;}toMillis(){return 1000;}toDate(){return new Date(1000);}}
+ const stamp=new Timestamp(),history=[{id:"old-event",data:{memberId:"OLD-ID",timestamp:stamp,point:7,unknown:"keep"}}];
+ const result=planHistoryMigration({members:[{id:U,data:{memberId:"OLD-ID"}}],history});
+ assert.equal(result.ready,true);assert.equal(result.updates[0].path,"pointTransactions/old-event");
+ assert.deepEqual(result.updates[0].patch,{userId:U,createdAt:stamp,points:7});assert.equal(history[0].data.unknown,"keep");
+ assert.equal(planHistoryMigration({members:[],history}).ready,false);
+});

@@ -27,13 +27,14 @@ async function main(args=process.argv.slice(2),env=process.env){
     if(command==="migration-plan"){
       if(b.sourceProject!=="member-3e17e")throw Error("Production inventory backup required; never promote test backup");
       const rows=b.records.map(r=>({path:r.path,data:safety.decode(r.data,{Timestamp:admin.firestore.Timestamp,GeoPoint:admin.firestore.GeoPoint,db})}));
-      const {planMigration,planRewardMigration}=require("./migration-plan");
+      const {planMigration,planRewardMigration,planHistoryMigration}=require("./migration-plan");
       const plan=planMigration({members:rows.filter(r=>/^users\/[^/]+$/.test(r.path)).map(r=>({id:r.path.split("/")[1],data:r.data})),monthId:env.G2_MIGRATION_BALANCE_MONTH,ownerUid:env.MEMBER_OWNER_LINE_UID,approvedStaff:(env.G2_APPROVED_STAFF_UIDS||"").split(",").filter(Boolean)});
       plan.rewards=planRewardMigration(rows.filter(r=>/^monthlyRewards\/[^/]+$/.test(r.path)).map(r=>({id:r.path.split("/")[1],data:r.data})));
-      plan.ready=plan.ready&&plan.rewards.ready;plan.sourceBackupSha256=b.recordsSha256;
+      plan.history=planHistoryMigration({members:rows.filter(r=>/^users\/[^/]+$/.test(r.path)).map(r=>({id:r.path.split("/")[1],data:r.data})),history:rows.filter(r=>/^pointTransactions\/[^/]+$/.test(r.path)).map(r=>({id:r.path.split("/")[1],data:r.data}))});
+      plan.ready=plan.ready&&plan.rewards.ready&&plan.history.ready;plan.sourceBackupSha256=b.recordsSha256;
       // Private plan includes member identities. Never commit or print it.
       await fs.writeFile(path.resolve(output),JSON.stringify(plan,null,2),{flag:"wx",mode:0o600});
-      return {members:plan.members,ready:plan.ready,problems:plan.problems.length+plan.rewards.problems.length,firestoreWrites:0};
+      return {members:plan.members,ready:plan.ready,problems:plan.problems.length+plan.rewards.problems.length+plan.history.problems.length,firestoreWrites:0};
     }
     return safety.restoreCreateOnly({backup:b,db,targetProject:output,targetPrefix:namespace,Timestamp:admin.firestore.Timestamp,GeoPoint:admin.firestore.GeoPoint,dryRun:command!=="restore-test"});
   }finally{await app.delete();}

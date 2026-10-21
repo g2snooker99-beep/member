@@ -47,4 +47,18 @@ function planRewardMigration(rewards){
   }
   return {mode:"preserve_existing_entitlement_ids",updates,problems,ready:problems.length===0,writesPerformed:0};
 }
-module.exports={planMigration,planRewardMigration};
+
+function planHistoryMigration({history,members}){
+  const memberIds=new Map(),uids=new Set(members.map(m=>m.id)),updates=[],problems=[];
+  for(const m of members)if(m.data.memberId){if(memberIds.has(m.data.memberId))memberIds.set(m.data.memberId,null);else memberIds.set(m.data.memberId,m.id);}
+  for(const {id,data:p} of history){
+    const candidate=p.userId||p.lineUserId||p.uid||memberIds.get(p.memberId),patch={};
+    if(!candidate||!uids.has(candidate)){problems.push({id,reason:"history_identity_requires_manual_mapping"});continue;}
+    if(!p.userId)patch.userId=candidate;
+    if(!p.createdAt){if(p.timestamp&&typeof p.timestamp.toMillis==="function")patch.createdAt=p.timestamp;else{problems.push({id,reason:"history_timestamp_requires_manual_mapping"});continue;}}
+    if(p.points===undefined){if(Number.isSafeInteger(p.point))patch.points=p.point;else{problems.push({id,reason:"history_points_requires_manual_mapping"});continue;}}
+    if(Object.keys(patch).length)updates.push({path:"pointTransactions/"+id,beforeSha256:hash(p),patch});
+  }
+  return {mode:"add_history_query_fields_only",updates,problems,ready:problems.length===0,writesPerformed:0};
+}
+module.exports={planMigration,planRewardMigration,planHistoryMigration};

@@ -2,6 +2,13 @@ name: Secure Member emulator tests
 on:
   push:
     branches: [feature/secure-pos-points]
+    paths:
+      - "functions/**"
+      - "secure-public/**"
+      - "firestore*.rules"
+      - "firestore.indexes.json"
+      - "firebase*.json"
+      - ".github/workflows/secure-member-tests.yml"
   pull_request:
 permissions:
   contents: read

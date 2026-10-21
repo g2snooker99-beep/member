@@ -22,14 +22,20 @@ async function runReleaseRehearsal({db,auth,FieldValue,FieldPath,Timestamp,GeoPo
     const custom=await auth.createCustomToken(S);
     const login=await fetch("https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key="+config.apiKey,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:custom,returnSecureToken:true}),signal:AbortSignal.timeout(15000)});
     assert.equal(login.status,200);const token=(await login.json()).idToken;
-    async function post(name,data){const r=await fetch("http://127.0.0.1:"+server.address().port+"/api/"+name,{method:"POST",headers:{Origin:env.G2_MEMBER_API_ORIGIN,"Content-Type":"application/json",Authorization:"Bearer "+token},body:JSON.stringify(data)});return {status:r.status,body:await r.json()};}
+    async function post(name,data,idToken=token){const r=await fetch("http://127.0.0.1:"+server.address().port+"/api/"+name,{method:"POST",headers:{Origin:env.G2_MEMBER_API_ORIGIN,"Content-Type":"application/json",Authorization:"Bearer "+idToken},body:JSON.stringify(data)});return {status:r.status,body:await r.json()};}
     assert.deepEqual((await post("memberSession",{})).body.data.capabilities,{staff:true,admin:false});
     const request={userId:U,monthId:"2026-11",points:2,requestId:randomUUID()};
     assert.equal((await post("memberAddPoints",request)).status,200);
     assert.equal((await post("memberAddPoints",request)).body.data.duplicate,true);
     assert.equal((await scoped.collection("users").doc(U).get()).data().monthlyPoints,6);
     assert.equal((await post("memberCloseMonth",{month:"2026-10"})).status,403);
-    await scoped.collection("memberStaffAccess").doc(S).update({enabled:false});
+    const ownerCustom=await auth.createCustomToken(A);
+    const ownerLogin=await fetch("https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key="+config.apiKey,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:ownerCustom,returnSecureToken:true}),signal:AbortSignal.timeout(15000)});
+    assert.equal(ownerLogin.status,200);const ownerToken=(await ownerLogin.json()).idToken;
+    assert.deepEqual((await post("memberSession",{},ownerToken)).body.data.capabilities,{staff:true,admin:true});
+    const closed=await post("memberCloseMonth",{month:"2026-10"},ownerToken);assert.equal(closed.status,200);assert.equal(closed.body.data.duplicate,true);
+    assert.equal((await post("memberSetStaff",{userId:S,role:"staff",isActive:false},ownerToken)).status,200);
+
     assert.equal((await post("memberAddPoints",{...request,requestId:randomUUID()})).status,403);
     result.checks.push("real_http_custom_auth_manual_retry_admin_denial_revocation");
     const after=await winzy.get();assert.equal(after.exists?after.data().monthlyPoints:null,score);
