@@ -1,13 +1,31 @@
 {
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "secure-member"
+    }
+  ],
+  "firestore": {
+    "rules": "firestore.secure.rules",
+    "indexes": "firestore.indexes.json"
+  },
   "hosting": {
-    "public": "public",
+    "public": "secure-public",
     "ignore": [
-      "firebase.json",
       "**/.*",
       "**/node_modules/**"
     ]
   },
-  "firestore": {
-    "rules": "firestore.rules"
+  "emulators": {
+    "auth": {
+      "port": 9099
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "ui": {
+      "enabled": false
+    },
+    "singleProjectMode": true
   }
 }

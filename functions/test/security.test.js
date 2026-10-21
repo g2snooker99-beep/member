@@ -47,7 +47,7 @@ test("staff revocation immediately applies despite stale token role",async()=>{
   await assertSucceeds(getDoc(doc(staff,"users",U)));
   await db.collection("users").doc(S).update({role:"member"});
   await assertFails(getDoc(doc(staff,"users",U)));
-  await assert.rejects(service.addPoints(S,{requestId,userId:U,points:1}),{code:"permission-denied"});
+  await assert.rejects(service.addPoints(S,{requestId,monthId:"2026-10",userId:U,points:1}),{code:"permission-denied"});
 });
 test("registration ignores browser role and points",async()=>{
   await seed();const uid="U"+"e".repeat(32);
@@ -55,7 +55,7 @@ test("registration ignores browser role and points",async()=>{
   const p=(await db.collection("users").doc(uid).get()).data();assert.equal(p.role,"member");assert.equal(p.monthlyPoints,0);
 });
 test("concurrent duplicate manual grant increments once and rejects conflicting replay",async()=>{
-  await seed();const d={requestId,userId:U,points:3};
+  await seed();const d={requestId,monthId:"2026-10",userId:U,points:3};
   await Promise.all([service.addPoints(S,d),service.addPoints(S,d)]);
   assert.equal((await db.collection("users").doc(U).get()).data().monthlyPoints,3);
   await assert.rejects(service.addPoints(S,{...d,points:2}),{code:"already-exists"});
@@ -63,7 +63,7 @@ test("concurrent duplicate manual grant increments once and rejects conflicting 
 });
 test("closed month denies manual points and cannot reopen",async()=>{
   await seed();await db.collection("posAwardMonths").doc("2026-10").update({state:"closed"});
-  await assert.rejects(service.addPoints(S,{requestId,userId:U,points:1}),{code:"failed-precondition"});
+  await assert.rejects(service.addPoints(S,{requestId,monthId:"2026-10",userId:U,points:1}),{code:"failed-precondition"});
   await assert.rejects(service.openMonth(A,"2026-10"),{code:"failed-precondition"});
   await assert.rejects(service.openMonth(S,"2026-10"),{code:"permission-denied"});
 });
@@ -83,3 +83,40 @@ test("close can resume from closing state",async()=>{
   assert.equal((await service.closeMonth(A,"2026-10")).state,"closed");
 });
 test("Bangkok month boundary",()=>{assert.equal(monthAt(new Date("2026-10-31T17:00:00Z")),"2026-11");});
+test("only admin can assign/revoke staff; no self or admin escalation",async()=>{
+  await seed();
+  await assert.rejects(service.setStaff(S,{userId:OTHER,role:"staff",isActive:true}),{code:"permission-denied"});
+  await assert.rejects(service.setStaff(A,{userId:OTHER,role:"admin",isActive:true}),{code:"invalid-argument"});
+  await assert.rejects(service.setStaff(A,{userId:A,role:"staff",isActive:true}),{code:"invalid-argument"});
+  await service.setStaff(A,{userId:S,role:"member",isActive:false});
+  await assert.rejects(service.addPoints(S,{requestId,monthId:"2026-10",userId:U,points:1}),{code:"permission-denied"});
+});
+test("reward redemption next month only; duplicate cannot redeem twice",async()=>{
+  await seed();const rewardId="2026-10_"+U+"_discount10";
+  await db.collection("monthlyRewards").doc(rewardId).set({userId:U,monthKey:"2026-10",status:"available"});
+  await assert.rejects(service.redeem(S,{rewardId}),{code:"failed-precondition"});
+  clock=new Date("2026-11-01T00:00:00Z");
+  assert.equal((await service.redeem(S,{rewardId})).duplicate,false);
+  assert.equal((await service.redeem(S,{rewardId})).duplicate,true);
+});
+test("manual request cannot slide into a new month",async()=>{
+  await seed();clock=new Date("2026-11-01T00:00:00Z");
+  await assert.rejects(service.addPoints(S,{requestId,monthId:"2026-10",userId:U,points:1}),{code:"failed-precondition"});
+  assert.equal((await db.collection("users").doc(U).get()).data().monthlyPoints,0);
+});
+test("public leaderboard contains no phone or LINE UID and staff promotion removes entry",async()=>{
+  await seed();await service.addPoints(S,{requestId,monthId:"2026-10",userId:U,points:1});
+  const rows=await db.collection("publicLeaderboard").get();assert.equal(rows.size,1);
+  assert.deepEqual(Object.keys(rows.docs[0].data()).sort(),["monthId","nickname","points"]);
+  await service.setStaff(A,{userId:U,role:"staff",isActive:true});
+  assert.equal((await db.collection("publicLeaderboard").get()).size,0);
+});
+test("Firebase Auth emulator accepts custom token with verified LINE uid",async()=>{
+  assert.match(process.env.FIREBASE_AUTH_EMULATOR_HOST||"",/^(127\.0\.0\.1|localhost):/);
+  const token=await admin.auth().createCustomToken(U);
+  const response=await fetch('http://'+process.env.FIREBASE_AUTH_EMULATOR_HOST+'/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=fake-key',{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,returnSecureToken:true})
+  });
+  assert.equal(response.status,200);const result=await response.json();
+  assert.equal(result.localId,U);assert.ok(result.idToken);
+});

@@ -33,6 +33,7 @@ function buildService({db,auth,FieldValue,FieldPath,channelId,verifyLine,now=()=
     });
   }
   async function addPoints(uid,d){
+    if(d.monthId!==monthAt(now()))fail("failed-precondition","Manual request month expired");
     if(!UID.test(d.userId||"")||!/^[a-f0-9-]{36}$/i.test(d.requestId||"")||!Number.isInteger(d.points)||d.points<1||d.points>3)fail("invalid-argument","Member, UUID and 1–3 points required");
     const month=monthAt(now()),fingerprint=createHash("sha256").update(JSON.stringify([uid,d.userId,d.points,month])).digest("hex");
     const receipt=db.collection("pointTransactions").doc("manual_"+d.requestId),ref=db.collection("users").doc(d.userId),gate=db.collection("posAwardMonths").doc(month);
@@ -47,6 +48,7 @@ function buildService({db,auth,FieldValue,FieldPath,channelId,verifyLine,now=()=
       const points=p.pointsMonth===month?p.monthlyPoints:0;
       if(!Number.isFinite(points)||points<0)fail("failed-precondition","Invalid balance");
       tx.update(ref,{monthlyPoints:points+d.points,pointsMonth:month,updatedAt:stamp()});
+      tx.set(db.collection("publicLeaderboard").doc(createHash("sha256").update(d.userId).digest("hex")),{nickname:p.nickname||"",points:points+d.points,monthId:month});
       tx.create(receipt,{userId:d.userId,staffId:uid,points:d.points,monthId:month,type:"add",source:"manual",fingerprint,createdAt:stamp(),timestamp:stamp()});
       return {duplicate:false};
     });
@@ -111,9 +113,34 @@ function buildService({db,auth,FieldValue,FieldPath,channelId,verifyLine,now=()=
       await identity(uid,["admin"],tx);const g=await tx.get(gate);
       if(g.data().state==="closed")return {state:"closed",duplicate:true};
       if(g.data().state!=="closing")fail("failed-precondition","Invalid gate");
-      tx.set(result,{monthId:month,top3,closedAt:stamp()});tx.update(gate,{state:"closed",closedAt:stamp()});return {state:"closed",top3};
+      tx.set(result,{monthId:month,top3:top3.map(({nickname,points,rank})=>({nickname,points,rank})),closedAt:stamp()});tx.update(gate,{state:"closed",closedAt:stamp()});return {state:"closed",top3};
     });
   }
-  return {exchange,register,addPoints,openMonth,closeMonth,identity};
+  async function redeem(uid,d){
+    if(typeof d.rewardId!=="string"||d.rewardId.length>150||d.rewardId.includes("/"))fail("invalid-argument","Invalid reward");
+    const ref=db.collection("monthlyRewards").doc(d.rewardId);
+    return db.runTransaction(async tx=>{
+      await identity(uid,["staff","admin"],tx);const r=await tx.get(ref);
+      if(!r.exists)fail("invalid-argument","Reward missing");
+      const reward=r.data();
+      if(reward.status==="used")return {duplicate:true};
+      if(!MONTH.test(reward.monthKey||""))fail("failed-precondition","Invalid reward month");
+      const [year,month]=reward.monthKey.split("-").map(Number),next=new Date(Date.UTC(year,month,1));
+      if(reward.status!=="available"||monthAt(next)!==monthAt(now()))fail("failed-precondition","Reward expired or not active");
+      tx.update(ref,{status:"used",usedAt:stamp(),usedBy:uid});return {duplicate:false};
+    });
+  }
+  async function setStaff(uid,d){
+    if(!UID.test(d.userId||"")||!["member","staff"].includes(d.role)||typeof d.isActive!=="boolean"||uid===d.userId)fail("invalid-argument","Another member/staff account required");
+    return db.runTransaction(async tx=>{
+      await identity(uid,["admin"],tx);const ref=db.collection("users").doc(d.userId),old=await tx.get(ref);
+      if(!old.exists||old.data().role==="admin")fail("permission-denied","Administrator accounts require separate recovery process");
+      tx.update(ref,{role:d.role,isActive:d.isActive,updatedAt:stamp()});
+      if(d.role!=="member"||!d.isActive)tx.delete(db.collection("publicLeaderboard").doc(createHash("sha256").update(d.userId).digest("hex")));
+      tx.create(db.collection("memberAudit").doc(),{actor:uid,target:d.userId,action:"setStaff",role:d.role,isActive:d.isActive,createdAt:stamp()});
+      return {updated:true};
+    });
+  }
+  return {exchange,register,addPoints,openMonth,closeMonth,redeem,setStaff,identity};
 }
 module.exports={buildService,monthAt};

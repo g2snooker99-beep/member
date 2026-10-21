@@ -1,0 +1,9 @@
+{
+  "score": 4,
+  "summary": "Secure replacement rules deny all client writes and use live server-owned roles. Emulator tests passed on the first reviewed commit. Live project access, legacy function retirement, production identity provisioning, UI/LINE end-to-end and deployment remain release gates; this is not a live-project security certification.",
+  "findings": [
+    {"check":"Legacy deployment","severity":"critical","issue":"The original branch rules allowed public users reads and unauthenticated point/role updates. Actual deployed rules could not be read because Firebase Console requires sign-in.","recommendation":"After backup and coordinated client migration, publish the replacement rules and verify the deployed release. Never deploy the legacy public directory."},
+    {"check":"Authority source","severity":"major","issue":"Previously deployed admin reset/reward HTTP endpoints and schedulers may bypass the new month gate through Admin SDK.","recommendation":"Inventory and retire or migrate every legacy writer before enabling POS auto-awards."},
+    {"check":"Operational verification","severity":"moderate","issue":"Real LINE login, isolated cloud Firebase writer, and production backup/restore remain unverified.","recommendation":"Complete these checks using dummy accounts and a separate Firebase project before owner release approval."}
+  ]
+}

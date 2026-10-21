@@ -14,12 +14,25 @@ async function refresh(){
   $("qr").replaceChildren();new QRCode($("qr"),{text:uid,width:160,height:160});
   $("history").replaceChildren();const history=await db.collection("pointTransactions").where("userId","==",uid).orderBy("createdAt","desc").limit(30).get();
   history.forEach(d=>row("history",`${d.data().monthId||""} +${d.data().points} แต้ม`));
-  $("rewards").replaceChildren();const rewards=await db.collection("monthlyRewards").where("userId","==",uid).limit(30).get();rewards.forEach(d=>row("rewards",`${d.data().monthKey} ${d.data().type} ${d.data().status}`));
+  $("rewards").replaceChildren();const rewards=await db.collection("monthlyRewards").where("userId","==",uid).limit(30).get();rewards.forEach(d=>{
+    row("rewards",`${d.data().monthKey} ${d.data().type} ${d.data().status} — ${d.id}`);
+    if(d.data().status==="available"){const qr=document.createElement("div");$("rewards").append(qr);new QRCode(qr,{text:"g2reward:"+d.id,width:160,height:160});}
+  });
 }
 async function action(fn){try{status("กำลังดำเนินการ…");await fn();status("สำเร็จ");}catch(e){status(e.message||"เชื่อมต่อไม่สำเร็จ กรุณาลองอีกครั้ง");}}
+$("scan").onclick=()=>action(async()=>{
+  const scanner=new Html5QrcodeScanner("reader",{fps:10,qrbox:220},false);
+  scanner.render(async value=>{
+    if(/^U[0-9a-f]{32}$/i.test(value))$("target").value=value;
+    else if(value.startsWith("g2reward:"))$("rewardId").value=value.slice(9);
+    else {status("QR ไม่ใช่บัตรสมาชิกหรือสิทธิ์รางวัล G2");return;}
+    await scanner.clear();status("สแกนสำเร็จ ตรวจสอบรายการก่อนบันทึก");
+  },()=>{});
+});
 $("register").onclick=()=>action(async()=>{await call("memberRegister",{nickname:$("nickname").value.trim(),phone:$("phone").value.trim()});await refresh();});
 $("add").onclick=()=>action(async()=>{
-  const data={userId:$("target").value.trim(),points:Number($("points").value)};
+  const monthId=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok",year:"numeric",month:"2-digit"}).format(new Date()).slice(0,7);
+  const data={userId:$("target").value.trim(),points:Number($("points").value),monthId};
   const key=JSON.stringify(data);
   if(pending&&pending.key!==key)throw Error("มีรายการค้างส่ง กรุณาส่งรายการเดิมก่อนเปลี่ยนข้อมูล");
   if(!pending){pending={key,data:{...data,requestId:crypto.randomUUID()}};sessionStorage.setItem("g2PendingManual",JSON.stringify(pending));}
@@ -27,6 +40,8 @@ $("add").onclick=()=>action(async()=>{
 });
 $("open").onclick=()=>action(()=>call("memberOpenMonth",{month:$("month").value}));
 $("close").onclick=()=>action(()=>call("memberCloseMonth",{month:$("month").value}));
+$("redeem").onclick=()=>action(()=>call("memberRedeemReward",{rewardId:$("rewardId").value.trim()}));
+$("setStaff").onclick=()=>action(()=>call("memberSetStaff",{userId:$("staffId").value.trim(),role:$("staffRole").value,isActive:$("staffActive").checked}));
 (async()=>{try{
   const c=window.G2_MEMBER_CONFIG;if(!c?.firebase||!c.liffId)throw Error("ยังไม่ได้ตั้งค่าระบบทดสอบ Firebase และ LINE");
   firebase.initializeApp(c.firebase);db=firebase.firestore();const functions=firebase.app().functions("asia-southeast1");call=async(n,d)=>(await functions.httpsCallable(n)(d)).data;
@@ -35,6 +50,9 @@ $("close").onclick=()=>action(()=>call("memberCloseMonth",{month:$("month").valu
   const login=await call("memberLineLogin",{idToken});await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.SESSION);
   uid=(await firebase.auth().signInWithCustomToken(login.customToken)).user.uid;
   const saved=sessionStorage.getItem("g2PendingManual");if(saved)pending=JSON.parse(saved);
-  await refresh();const results=await db.collection("seasonResults").orderBy(firebase.firestore.FieldPath.documentId(),"desc").limit(6).get();
+  await refresh();
+  const currentMonth=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok",year:"numeric",month:"2-digit"}).format(new Date()).slice(0,7);
+  const board=await db.collection("publicLeaderboard").where("monthId","==",currentMonth).orderBy("points","desc").limit(100).get();let rank=0;board.forEach(d=>row("leaderboard",`${++rank}. ${d.data().nickname} ${d.data().points} แต้ม`));
+  const results=await db.collection("seasonResults").orderBy(firebase.firestore.FieldPath.documentId(),"desc").limit(6).get();
   results.forEach(d=>row("results",`${d.id}: ${(d.data().top3||[]).map(p=>`${p.rank}. ${p.nickname} ${p.points} แต้ม`).join(" / ")}`));status("เข้าสู่ระบบแล้ว");
 }catch(e){status(e.message);}})();

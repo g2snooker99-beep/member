@@ -2,9 +2,11 @@
 const admin=require("firebase-admin");
 const {onCall,HttpsError}=require("firebase-functions/v2/https");
 const {defineString}=require("firebase-functions/params");
+const {onSchedule}=require("firebase-functions/v2/scheduler");
 const {buildService}=require("./service");
 admin.initializeApp();
 const channel=defineString("MEMBER_LINE_CHANNEL_ID");
+const closeAdmin=defineString("MEMBER_MONTH_CLOSE_ADMIN_UID",{default:""});
 async function verifyLine(idToken,clientId){
   const r=await fetch("https://api.line.me/oauth2/v2.1/verify",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({id_token:idToken,client_id:clientId}),signal:AbortSignal.timeout(5000)});
   if(!r.ok)throw new HttpsError("unauthenticated","LINE rejected login");return r.json();
@@ -18,3 +20,12 @@ exports.memberRegister=callable((s,u,d)=>s.register(u,d));
 exports.memberAddPoints=callable((s,u,d)=>s.addPoints(u,d));
 exports.memberOpenMonth=callable((s,u,d)=>s.openMonth(u,d.month));
 exports.memberCloseMonth=callable((s,u,d)=>s.closeMonth(u,d.month));
+exports.memberRedeemReward=callable((s,u,d)=>s.redeem(u,d));
+exports.memberSetStaff=callable((s,u,d)=>s.setStaff(u,d));
+exports.memberScheduledClose=onSchedule({region:"asia-southeast1",schedule:"5 0 1 * *",timeZone:"Asia/Bangkok",timeoutSeconds:540,retryCount:3},async()=>{
+  const current=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok",year:"numeric",month:"2-digit"}).format(new Date()).slice(0,7);
+  const [year,month]=current.split("-").map(Number);
+  const previous=new Date(Date.UTC(year,month-2,15)).toISOString().slice(0,7);
+  const s=buildService({db:admin.firestore(),auth:admin.auth(),FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,channelId:channel.value(),verifyLine});
+  return s.closeMonth(closeAdmin.value(),previous);
+});
