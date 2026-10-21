@@ -1,9 +1,38 @@
 {
-  "score": 4,
-  "summary": "Secure replacement rules deny all client writes and use live server-owned roles. Emulator tests passed on the first reviewed commit. Live project access, legacy function retirement, production identity provisioning, UI/LINE end-to-end and deployment remain release gates; this is not a live-project security certification.",
-  "findings": [
-    {"check":"Legacy deployment","severity":"critical","issue":"The original branch rules allowed public users reads and unauthenticated point/role updates. Actual deployed rules could not be read because Firebase Console requires sign-in.","recommendation":"After backup and coordinated client migration, publish the replacement rules and verify the deployed release. Never deploy the legacy public directory."},
-    {"check":"Authority source","severity":"major","issue":"Previously deployed admin reset/reward HTTP endpoints and schedulers may bypass the new month gate through Admin SDK.","recommendation":"Inventory and retire or migrate every legacy writer before enabling POS auto-awards."},
-    {"check":"Operational verification","severity":"moderate","issue":"Real LINE login, isolated cloud Firebase writer, and production backup/restore remain unverified.","recommendation":"Complete these checks using dummy accounts and a separate Firebase project before owner release approval."}
-  ]
+  "score": 5,
+  "scope": "Replacement firestore.secure.rules on staging; not production certification",
+  "summary": "All browser writes denied; privileges require active server-approved ACL; user and history reads are authenticated; public projections omit phone and LINE UID. Tests exercise real Firestore rules and revoked authority.",
+  "findings": [],
+  "production": {
+    "score": 1,
+    "status": "unchanged_pending_owner_approval",
+    "findings": [
+      {
+        "check": "Update bypass and authority",
+        "severity": "critical",
+        "issue": "Existing live rules previously verified to allow unauthenticated member/points/role writes.",
+        "recommendation": "Coordinated secure client/backend/rules rollout after verified backup and owner approval."
+      },
+      {
+        "check": "Admin SDK writers",
+        "severity": "critical",
+        "issue": "Legacy reset/reward functions bypass client rules; inventory/retirement requires approved production change.",
+        "recommendation": "Stop or replace every legacy member writer; retain unrelated POS printing services."
+      }
+    ]
+  },
+  "releaseBlockers": [
+    "Production backup destination/key custody and restore of actual backup",
+    "Verified owner/staff recertification",
+    "Production POS wiring and continuous worker provision",
+    "Owner approval for coordinated production rollout and activation"
+  ],
+  "checklist": {
+    "createUpdateBypass": "deny all client creates/updates/deletes",
+    "authoritySource": "server-owned ACL plus live role; backend admin pinned to owner",
+    "businessLogic": "reads supported; server mutations only",
+    "resourceLimits": "server request size and input length/range limits; no client writes",
+    "typeSafety": "server validates identity, month and safe integer balances",
+    "ownership": "private user/history/reward reads scoped to identity or approved staff"
+  }
 }

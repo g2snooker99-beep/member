@@ -1,84 +1,52 @@
-# G2 Member release status — 2026-10-21
+# G2 Member — ผลทดสอบ Staging 21 ตุลาคม 2026
 
-## Browser and camera checkout acceptance — verified 15:31 Bangkok
+สถานะ: โค้ดส่วนสมาชิกและเครื่องมือย้ายข้อมูลอยู่ใน feature branches เท่านั้น ยังไม่ใช่การอนุมัติเปิด Production
 
-The user completed actual LINE login, registered a profile in g2-member-test,
-scanned the staging table QR on a phone, and checked out from the POS browser.
-The user then supplied a Member-page screenshot showing Winzy.A at 1 monthly
-point and a +1 transaction. Its member ID matched the prior registration.
+## ยอดที่รักษาไว้
 
-The test-only profile was admitted by an operator-configured, one-shot startup
-helper after checking real Firebase Auth sign-in, exact UID/member ID, active
-member role, zero starting balances and no prior allowlist record. This grants
-no staff/admin privileges and changes no balances. Receipt:
-`browserTestApprovals/d5cbe9fa-51b4-43bd-b86e-fb87c971a426`.
-Restart does not re-enable an admission that has since been revoked.
+- Winzy.A บน Firebase ทดสอบ: 1 แต้ม ตามการทดสอบ LINE/QR/checkout ที่ผ่านแล้ว
+- member-3e17e ตรวจอ่านอย่างเดียวสองครั้ง: สมาชิก 76 คน, คะแนนรวม 241, ประวัติ 737 รายการ
+- รางวัลเดิม 20 สิทธิ์: active 18 / ใช้แล้ว 2; ทุกสิทธิ์ใช้ schema legacy จึงเตรียมตัวแปลงที่เก็บ ID และสถานะใช้แล้วไว้
+- fingerprint สมาชิกก่อน/หลังการสำรวจตรงกัน ไม่มีการเขียนข้อมูลจริงหรือแจกแต้มทดลองเข้าระบบจริง
 
-To avoid a 55-minute wait, the existing synthetic table was explicitly aged to
-70 minutes. The one-shot PostgreSQL receipt preserves old/new starts; session
-and round markers were changed atomically, membership retained and old QR
-links revoked. This is simulated elapsed time, not a wall-clock endurance test.
-Clock receipt: `90ce0698-0e82-42ee-8ea1-dd4f2cb8cc32`. An initial attempt stopped
-before mutation because session initialization had not completed; scheduling
-was moved after request initialization and the subsequent cloud run passed.
+## สิ่งที่ลงมือแก้และทดสอบ
 
-Verified staging PostgreSQL results for new bill `B261021082941`:
-- Exactly one matching award, points=1, state=delivered, attempts=1.
-- Round closed and the table's active session removed.
-- No historic preview/bill was used as an award source.
-- Venue checkout notifications and relay side effects are suppressed only for
-  synthetically named tables with all isolated-staging configuration guards.
+| งาน | ผลและขอบเขต |
+|---|---|
+| พนักงาน/เพิ่มแต้ม/สิทธิ์ | live server ACL, ปฏิเสธ role ปลอม, ถอนสิทธิ์ทันที, duplicate UUID, retry ข้ามเดือน, DOM controller/menu/busy/offline tests |
+| แอดมิน/Top 3/ปิดเดือน | ปิดเดือนเฉพาะ fixture แยก, ทำต่อจาก snapshot ที่ค้าง, ไม่ลบแต้มเดือนใหม่/lifetimeHours, ไม่รวม inactive, คงกติกาคะแนนเสมอดูเวลาสมัคร |
+| เสื้อ Limited / ลด 10% | ใช้พร้อมกันสำเร็จครั้งเดียว, มี audit receipt, ลด 10% ต้องมีบิล, ไม่ซ้อนสิทธิ์ในบิลเดียว, ปฏิเสธบิลใหม่หลังใช้แล้วและสิทธิ์หมดอายุ |
+| Security Rules | ทดสอบ Auth/Firestore emulator จริง; ปฏิเสธ client create/update/delete สำหรับคะแนน/บทบาท/รางวัล/receipts; Rules จริงยังรออนุมัติ |
+| สำรอง/กู้คืน | AES-256-GCM, manifest/checksum, typed Timestamp/bytes/GeoPoint/reference, restore ลง namespace ทดสอบว่าง, hash ตรง, กัน tamper และ overwrite |
+| เตรียมย้ายข้อมูล | เครื่องมืออ่าน backup จริง, สร้าง private plan, ย้ายแบบเพิ่มฟิลด์, ตรวจ hash+approval+freeze, มี receipt รองรับ retry, ไม่ patch monthlyPoints |
+| คิว/ส่งซ้ำ/Render restart | ทดสอบโปรเซสจริงคนละ boot: outbox ค้างอยู่ใน PostgreSQL, ส่งซ้ำแล้วคง 1 แต้ม; เพิ่ม bounded reconcile/delivery loop ทุก 20 วินาที |
+| เปิดจริง/rollback | ดู GO_LIVE_RUNBOOK_TH.md; gates แยกการ deploy กับ activation, ห้าม rollback กลับ Rules สาธารณะ |
 
-Latest deployed feature code for these changes:
-- Member: `a147f8ae2b23453e2d034c1d8ddcc36075a94a7c`.
-- POS staging: `9e6a6ea9ca4c15603e94fa5bccfed04031062ec2`.
+ข้อจำกัดของหลักฐาน UI: ทดสอบ DOM/controller และ HTTP/Auth/Firestore จริง ไม่มีการอ้างว่าได้กดเมนูแอดมินบน LINE ของเจ้าของจริงผ่าน browser automation การล็อกอิน/QR/checkout ของ Winzy.A ใช้ผลที่ผู้ใช้ทดสอบผ่านแล้ว ไม่ย้อนทดสอบซ้ำ
 
-Focused checks passed: browser-admission isolation/replay tests, synthetic-table
-side-effect boundaries, clock-fixture identity/time/project guards, and syntax
-checks. Previously completed integration/cloud suites were not rerun merely to
-repeat the same evidence. Fresh browser admin/staff/reward flows, final release
-CI and the remaining production gates below are still required.
+ส่วนลด 10% ที่ทดสอบเป็นการใช้สิทธิ์ผูกเลขบิลผ่านหน้าพนักงาน ยังไม่ได้เปลี่ยนการลดราคาที่ POS ให้ทำอัตโนมัติ
 
-## Verified cloud evidence
+## หลักฐาน CI และ cloud
 
-Verified against Render application logs and staging PostgreSQL, without repeating completed tests. Test run: `35b990d5-1a95-44da-bb10-08936cf8eb56`. All recipients are synthetic fixtures in `g2-member-test`.
+- Member: 38/38 ผ่าน ไม่มี skipped — [Actions](https://github.com/g2snooker99-beep/member/actions/runs/39575205735)
+- POS helper CI: พบ 253 Python tests, ผ่าน 211/skip ตาม job 42; JavaScript 11/11 ผ่าน — [Actions](https://github.com/g2snooker99-beep/g2snooker/actions/runs/39575339945)
+- Job PostgreSQL/Firestore integration ผ่าน รวม reconciliation/concurrent claims/outage/lost acknowledgement
+- Restart receipt: 0ea62f7b-f21d-452c-bbc7-e489f8e84fc2, before/after points=1, คนละ server boot
+- Read-only inventory receipt: 9146d40e-5c48-4e42-84aa-7ca97ea2b8aa
+- คิว Staging สุดท้าย 2 รายการ delivered ไม่มี pending; บิลทดลอง B261021015307 ยังถูกกันไว้
+- ตัวส่งคิว started 09:15:06 UTC บน g2-member-test เท่านั้น
+- Runtime code Member: 77075d73b4e711126a127019604678bdf9d00fe5; POS: 308ec395731f8b9cbf58f6604bb786f315340634
+- Cloud rehearsal ล่าสุดผ่าน 8 checks เมื่อ 09:17:34 UTC: e435c845-4a6a-4d4b-99c9-d76fb4ccf85b
+- สำรอง/กู้คืน fixture 29 เอกสาร hash ตรงกัน: 556b2120602fc3717e7e51ff29148d76bea1d55a78a7a1ef00bf6be4f146ae85
+- ซ้อม migration จริงบน Firestore Staging: คะแนนเดิม 17/23 แต้มไม่เปลี่ยน, memberId เดิมคงอยู่, timestamp/history เดิมครบ, รางวัลที่ใช้แล้วไม่ถูกเปิดคืน และ retry ไม่ย้ายซ้ำ
+- Owner HTTP session/close-month retry/set-staff ผ่านด้วย Firebase ID token จริงของ fixture แยก ไม่ใช่ LINE owner ของร้านจริง
 
-Render Member rehearsal passed:
-- Real Firebase custom-token sign-in and ID-token verification.
-- Forged administrator role rejected; revoked staff immediately rejected.
-- Real HTTP grants total 37 points; concurrent requests and subsequent replay retain 37 points.
-- Actual Firestore rules reject direct client point edits.
-- Isolated month-close fixture: reset, repeat close, and retrospective award/reopen rejection.
-- Restart recognizes the completed receipt and does not repeat awards.
+## ยังไม่ผ่านเงื่อนไขเปิดจริง
 
-POS staging rehearsal passed, confirmed independently in `g2_sandbox_rehearsals`:
-- Actual Flask open-table and staff-authorized QR routes.
-- Synthetic member enrollment through the trusted round store, including duplicate join rejection.
-- Actual paid checkout while the receiver transport is deliberately unavailable.
-- PostgreSQL retains the pending award.
-- Real Firestore commit followed by deliberately lost acknowledgement; retry retains one award.
-- Checkout invalidates the QR.
-- New dummy bill `B261021072126`, table 11, one eligible hour, final balance 1 point.
-- Queue currently has one delivered row. No venue notifications were sent by this rehearsal.
+1. ต้องยืนยัน LINE UID ผู้ดูแลและรับรองบัญชีสิทธิ์เดิม 7 บัญชีใหม่
+2. ต้องสำรองข้อมูลจริงไว้ปลายทางส่วนตัวที่เลือก พร้อมกุญแจแยก และทดสอบ restore ของ backup จริงก่อน migration
+3. Production Rules ยังเป็นเวอร์ชันเดิมที่เคยพบช่องโหว่ และยังมี legacy Admin SDK writers; ต้องอนุมัติเปลี่ยนพร้อม frontend/backend ห้ามปล่อย Rules เดี่ยว ๆ
+4. ต้องจัดเตรียม production POS wiring/worker และยืนยัน runtime/backend ที่รองรับจริง; Render POS จริงปัจจุบันเป็น Starter แต่ staging integration ถูก guard ไม่ให้เปิดด้วยการสลับตัวแปรอย่างเดียว
+5. จึงยังไม่ควรอนุมัติเปิดจริงเพียงเพราะ CI ผ่าน ต้องตรวจ release checklist และ commit ชุดสุดท้ายก่อน
 
-These earlier PostgreSQL and Firebase cloud rehearsals used programmatic enrollment. Outage and lost acknowledgement were deliberate transport fault injections, not an actual Firebase service outage. Later browser/camera acceptance is recorded separately above.
-
-The earlier receiver deployment was `5f61c9d23df6a6370746d607563c496590810ccc`. Current feature deployments are recorded above.
-
-## Remaining acceptance gates
-
-1. LINE/browser/registration/camera enrollment and checkout acceptance is now complete as recorded above. The browser controller remains unavailable; acceptance is supported by the user's screenshots and independently verified server/database evidence. Remove temporary rehearsal configuration and review test-only helpers before any production rollout.
-2. Verify test owner bootstrap from independently verified LINE identity; exercise actual admin/staff browser flows and reward redemption.
-3. Complete checkout cancellation/edit/move/merge regression acceptance and confirm production timestamp handling.
-4. Back up production Member data, rules and configuration; rehearse restore and explicitly migrate legacy balances to their correct month without dropping points.
-5. Retire every legacy Admin SDK reset/reward writer. Roll out secure frontend and Firestore rules together only after approval; do not deploy rules alone against legacy pages.
-6. Establish continuously scheduled production queue delivery, monitoring and recovery; free Render idle services are not a production worker guarantee.
-7. Recheck feature-branch CI for final release commits. Previous emulator/CI evidence remains separate from cloud/browser acceptance.
-
-## Production hold and rollback
-
-Do not change POS Production/main, enable `G2_MEMBER_ENABLED=true`, write customer points, or change `member-3e17e` rules without explicit owner approval. Historic trial bill `B261021015307` remains excluded and must never be imported from previews.
-
-For the eventual approved rollout: record deployment/configuration versions and backup/restore evidence first; stop legacy monthly writers; deploy the coordinated secure member frontend/backend/rules; verify read-only and synthetic canary behavior; approve activation separately. If canary or delivery checks fail, keep awards disabled, pause consumers, preserve outbox/receipts and restore compatible application/configuration versions. Do not delete receipts or replay all bills: reconcile by immutable award IDs before resuming. Restore data only from a verified backup under a separately reviewed recovery procedure.
-
-This document records verified evidence and outstanding work; it is not production approval.
+ไม่เคย Deploy Production/main, เปลี่ยน Rules จริง, reset/ลบแต้มสมาชิกจริง หรือย้ายคะแนนทดลองเข้าระบบจริงในงานนี้
