@@ -14,7 +14,7 @@ function encode(v,referencePrefix=""){
     return ["reference",referencePrefix?v.path.slice(referencePrefix.length+1):v.path];
   }
   if(Array.isArray(v))return ["array",v.map(x=>encode(x,referencePrefix))];
-  if(v&&Object.getPrototypeOf(v)===Object.prototype)return ["map",Object.entries(v).map(([k,x])=>[k,encode(x,referencePrefix)])];
+  if(v&&Object.getPrototypeOf(v)===Object.prototype)return ["map",Object.entries(v).sort(([a],[b])=>a<b?-1:a>b?1:0).map(([k,x])=>[k,encode(x,referencePrefix)])];
   throw Error("Unsupported Firestore value; backup aborted");
 }
 function validPath(p,document=true){

@@ -29,3 +29,13 @@ test("history projection preserves old document identity, points and timestamp",
  assert.deepEqual(result.updates[0].patch,{userId:U,createdAt:stamp,points:7});assert.equal(history[0].data.unknown,"keep");
  assert.equal(planHistoryMigration({members:[],history}).ready,false);
 });
+
+test("migration application fails closed without approval, backup and a matching full plan hash",async()=>{
+ const {applyReviewedPlan,planDigest}=require("../apply-reviewed-migration");
+ const plan={ready:true,updates:[],authority:[],sourceBackupSha256:"backup"};
+ plan.planSha256=planDigest(plan);
+ await assert.rejects(applyReviewedPlan({db:{projectId:"member-3e17e"},plan,approvedPlanSha256:plan.planSha256,backupManifestSha256:"backup",writersPaused:true}));
+ const changed={...plan,rewards:{updates:[{path:"monthlyRewards/a",patch:{status:"available"}}]}};
+ assert.notEqual(planDigest(changed),plan.planSha256);
+ await assert.rejects(applyReviewedPlan({db:{projectId:"member-3e17e"},plan:changed,approvedPlanSha256:plan.planSha256,backupManifestSha256:"backup",writersPaused:true,productionApproval:true}));
+});

@@ -69,6 +69,35 @@ async function releaseScenarios({db,root,FieldValue,FieldPath,Timestamp,GeoPoint
   assert.equal(copy.recordsSha256,backup.recordsSha256);assert.equal(copy.count,backup.count);
   await assert.rejects(safety.restoreCreateOnly({...config,dryRun:false}));
   checks.push("encrypted_firestore_backup_restore_exact_hash_and_collision_block");
+
+  // Rehearse in-place production-shaped migration, including serialized
+  // timestamps and immutable old membership/reward/history document IDs.
+  const legacyRoot=root.collection("migrationFixtures").doc("source");
+  const legacy={projectId:physicalDb.projectId,testMigrationNamespace:legacyRoot.path,collection:n=>legacyRoot.collection(n),doc:p=>physicalDb.doc(legacyRoot.path+"/"+p),runTransaction:fn=>physicalDb.runTransaction(fn)};
+  await legacy.collection("users").doc(A).create({role:"admin",isActive:true,monthlyPoints:17,pointsMonth:"2026-10",memberId:"OWNER-OLD",lifetimeHours:12});
+  await legacy.collection("users").doc(ids[0]).create({role:"member",isActive:true,monthlyPoints:23,memberId:"MEMBER-OLD",displayName:"LEGACY TEST",lifetimeHours:8});
+  await legacy.collection("pointTransactions").doc("old-event").create({memberId:"MEMBER-OLD",point:7,timestamp:new Timestamp(1600000000,123456789),unknown:"keep"});
+  await legacy.collection("monthlyRewards").doc("old-used").create({userId:ids[0],monthKey:"2026-09",rewardType:"discount_10",status:"active",usedAt:new Timestamp(1600000000,0),unknown:"keep"});
+  const original=await safety.exportData({root:legacyRoot,sourceProject:physicalDb.projectId,collections:["users","pointTransactions","monthlyRewards"],frozen:true});
+  const members=(await legacy.collection("users").get()).docs.map(d=>({id:d.id,data:d.data()}));
+  const mapping=require("./migration-plan"),{applyReviewedPlan,planDigest}=require("./apply-reviewed-migration");
+  const plan=mapping.planMigration({members,monthId:"2026-10",ownerUid:A});
+  plan.rewards=mapping.planRewardMigration((await legacy.collection("monthlyRewards").get()).docs.map(d=>({id:d.id,data:d.data()})));
+  plan.history=mapping.planHistoryMigration({members,history:(await legacy.collection("pointTransactions").get()).docs.map(d=>({id:d.id,data:d.data()}))});
+  plan.sourceBackupSha256=original.recordsSha256;plan.ready=plan.ready&&plan.rewards.ready&&plan.history.ready;plan.planSha256=planDigest(plan);
+  const decoded=safety.decode(JSON.parse(JSON.stringify(safety.encode(plan))),{Timestamp,GeoPoint,db:physicalDb});
+  assert.equal(planDigest(decoded),plan.planSha256);
+  const options={db:legacy,plan:decoded,approvedPlanSha256:plan.planSha256,backupManifestSha256:original.recordsSha256,FieldValue,writersPaused:true};
+  const migrated=await applyReviewedPlan(options);assert.ok(migrated.applied>0);
+  const retry=await applyReviewedPlan(options);assert.equal(retry.applied,0);assert.equal(retry.duplicates,migrated.applied);
+  const member=(await legacy.collection("users").doc(ids[0]).get()).data();
+  assert.equal(member.monthlyPoints,23);assert.equal(member.memberId,"MEMBER-OLD");assert.equal(member.lifetimeHours,8);
+  assert.equal((await legacy.collection("users").doc(A).get()).data().monthlyPoints,17);
+  const used=(await legacy.collection("monthlyRewards").doc("old-used").get()).data();assert.equal(used.status,"used");assert.equal(used.unknown,"keep");
+  const event=(await legacy.collection("pointTransactions").doc("old-event").get()).data();assert.equal(event.points,7);assert.equal(event.timestamp.nanoseconds,123456789);assert.equal(event.createdAt.nanoseconds,123456789);
+  const board=await legacy.collection("publicLeaderboard").get();assert.equal(board.size,1);assert.equal(board.docs[0].data().points,23);
+  checks.push("additive_migration_preserves_member_ids_scores_history_rewards_and_retry");
+
   return {checks,backupDocuments:backup.count,backupSha256:backup.recordsSha256,restoreSha256:copy.recordsSha256,productionWrites:0};
 }
 module.exports={releaseScenarios};

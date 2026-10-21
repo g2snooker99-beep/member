@@ -26,7 +26,11 @@ function planMigration({members,monthId,ownerUid,approvedStaff=[]}){
   }
   if(!seen.has(ownerUid))problems.push({id:ownerUid,reason:"owner_missing"});
   for(const id of approvedStaff)if(!seen.has(id))problems.push({id,reason:"staff_missing"});
-  const payload={sourceProject:"member-3e17e",targetProject:"member-3e17e",mode:"in_place_additive_only",monthId,ownerUid,members:seen.size,updates,authority,problems,writesPerformed:0};
+  const projections=members.flatMap(({id,data:p})=>{
+    const update=updates.find(x=>x.path==="users/"+id),current={...p,...(update?.patch||{})};
+    return current.role==="member"&&current.isActive===true&&current.pointsMonth===monthId?[{userId:id,userSha256:hash(current),nickname:current.nickname||"",points:current.monthlyPoints,monthId}]:[];
+  });
+  const payload={projections,sourceProject:"member-3e17e",targetProject:"member-3e17e",mode:"in_place_additive_only",monthId,ownerUid,members:seen.size,updates,authority,problems,writesPerformed:0};
   return {...payload,ready:problems.length===0,planSha256:createHash("sha256").update(JSON.stringify(payload)).digest("hex")};
 }
 function planRewardMigration(rewards){

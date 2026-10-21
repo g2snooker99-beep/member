@@ -184,7 +184,7 @@ test("release scenarios: Top3, resumed close, rewards and encrypted restore",asy
   await seed();const {randomUUID}=require("node:crypto"),runId=randomUUID(),root=db.collection("releaseRehearsals").doc(runId);
   const scoped={collection:n=>root.collection(n),runTransaction:fn=>db.runTransaction(fn)};
   const result=await require("../release-scenarios").releaseScenarios({db:scoped,root,physicalDb:db,FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,Timestamp:admin.firestore.Timestamp,GeoPoint:admin.firestore.GeoPoint,runId});
-  assert.equal(result.checks.length,5);assert.equal(result.backupSha256,result.restoreSha256);
+  assert.equal(result.checks.length,6);assert.equal(result.backupSha256,result.restoreSha256);
 });
 test("rules deny reward forgery, consumed reward changes, deletions and private receipts",async()=>{
   await seed();const client=env.authenticatedContext(U,{role:"admin"}).firestore(),staff=env.authenticatedContext(S).firestore();
