@@ -27,6 +27,29 @@ before(async()=>{
   service=buildService({db,auth:{createCustomToken:async uid=>"test:"+uid},FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,channelId:"1234567890",ownerUid:A,now:()=>clock,verifyLine:async()=>{if(offline)throw Error("LINE unavailable");return claims;}});
 });
 after(async()=>{await env?.cleanup();await admin.app().delete();});
+test("Render HTTP custom login to real Auth/Firestore emulators, duplicate grant and revoked staff",async()=>{
+  await seed();
+  const {createHandler}=require("../render-http"),http=require("node:http");
+  const realService=buildService({db,auth:admin.auth(),FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,channelId:"1234567890",ownerUid:A,sandboxOnly:true,now:()=>clock,verifyLine:async()=>({...valid,sub:S})});
+  const origin="https://g2-member-test-api.onrender.com";
+  const server=http.createServer(createHandler({service:realService,auth:admin.auth(),origin}));
+  await new Promise(r=>server.listen(0,"127.0.0.1",r));const url="http://127.0.0.1:"+server.address().port;
+  const post=(name,data,token)=>fetch(url+"/api/"+name,{method:"POST",headers:{Origin:origin,"Content-Type":"application/json",...(token?{Authorization:"Bearer "+token}:{})},body:JSON.stringify(data)});
+  try{
+    const login=await post("memberLineLogin",{idToken:"a".repeat(30)});assert.equal(login.status,200);
+    const customToken=(await login.json()).data.customToken;
+    const response=await fetch('http://'+process.env.FIREBASE_AUTH_EMULATOR_HOST+'/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=fake-key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:customToken,returnSecureToken:true})});
+    assert.equal(response.status,200);const token=(await response.json()).idToken;
+    const data={requestId,monthId:"2026-10",userId:U,points:2};
+    assert.equal((await post("memberAddPoints",data,token)).status,403);
+    await db.collection("sandboxMembers").doc(U).set({dummyOnly:true,enabled:true});
+    const first=await post("memberAddPoints",data,token);assert.equal(first.status,200);
+    assert.equal((await (await post("memberAddPoints",data,token)).json()).data.duplicate,true);
+    assert.equal((await db.collection("users").doc(U).get()).data().monthlyPoints,2);
+    await db.collection("memberStaffAccess").doc(S).update({enabled:false});
+    assert.equal((await post("memberAddPoints",{...data,requestId:"22345678-1234-1234-1234-123456789012"},token)).status,403);
+  }finally{await new Promise(r=>server.close(r));}
+});
 test("Render sandbox denies unapproved members even with valid staff authority",async()=>{
   await seed();
   const sandbox=buildService({db,auth:{},FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,channelId:"1234567890",ownerUid:A,sandboxOnly:true,now:()=>clock});

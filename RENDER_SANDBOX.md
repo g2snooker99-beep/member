@@ -31,7 +31,8 @@ paste into chat, or log them. Existing Firebase rules deny all client writes.
 2. Render → test API service → Environment → Edit → add
    `G2_TEST_FIREBASE_SERVICE_ACCOUNT_JSON`, paste JSON privately → Save, rebuild, deploy.
 3. Firebase Console → **g2-member-test** → Project settings → General → Your apps
-   → Web (`</>`) → register `g2-render-test-web` without Hosting. Copy the web
+   → select the already registered `g2-render-test-web` (app ID
+   `1:440696322754:web:2314128e8f65895dfa195b`, without Hosting). Copy the web
    config to `G2_TEST_FIREBASE_WEB_CONFIG_JSON` as valid JSON. Authentication →
    Settings → Authorized domains → add the test API service hostname.
 4. LINE Developers → Login channel **2010084269** → LIFF → Add a **new test LIFF**
@@ -45,13 +46,14 @@ paste into chat, or log them. Existing Firebase rules deny all client writes.
 ## POS sandbox connection
 
 Use only g2snooker-staging. Preserve its live read-only credential unchanged.
-Install metadata migration with `python -m member_integration.migrate_sandbox`
-in its staging shell (or execute migration 003 against staging DB through a
-trusted PostgreSQL client). This is additive and queues no historic bills.
+After validated test-only configuration, sandbox startup applies additive
+metadata migration 003 under a PostgreSQL advisory lock. It checks
+`current_database()` equals `g2snooker_staging_db` first, and queues no historic
+bills. An optional manual command is `python -m member_integration.migrate_sandbox`.
 
 Set the new test-only credential and `G2_FIREBASE_PROJECT_ID=g2-member-test`,
 confirm `G2_MEMBER_POS_TIMEZONE` against POS timestamp storage, then set
-`G2_MEMBER_SANDBOX_ENABLED=true` **only after migration/credentials/fixtures are
+`G2_MEMBER_SANDBOX_ENABLED=true` **only after credentials/fixtures are
 ready**. Keep `G2_MEMBER_ENABLED=false`. Test membership lookup is allowlisted;
 it never falls back to the live member reader. Paid checkout closes QR, produces
 the immutable outbox and attempts one delivery. Signed staff can POST
