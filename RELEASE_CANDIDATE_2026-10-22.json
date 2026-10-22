@@ -169,8 +169,8 @@
     "frozen": false
   },
   "remainingExternalInputs": [
-    "Dedicated production POS LIFF on channel 2010084269, separate from signup and both test LIFFs, endpoint https://g2snooker.onrender.com/api/member/join-page",
-    "Production POS operator access remains necessary for additive schema preparation and backup verification; Render connector cannot execute Shell commands"
+    "Verify openid/profile scopes in LIFF configuration or successful real LINE authorization before activation",
+    "Production POS backup/operator connectivity and process clock confirmation; Render connector cannot execute Shell commands"
   ],
   "posBindingObservation": {
     "source": "Owner-run read-only Render Shell command; screenshot 20261022-064752",
@@ -185,5 +185,17 @@
     "writes": 0,
     "livePosTimezoneCandidate": "UTC",
     "timezoneEvidence": "Pinned current app stores datetime.now() values and separately adds seven hours for Thai display; process local timezone still needs final clock confirmation."
+  },
+  "posLiff": {
+    "id": "2010084269-SfIzPWRK",
+    "url": "https://liff.line.me/2010084269-SfIzPWRK",
+    "channelId": "2010084269",
+    "size": "Full",
+    "endpoint": "https://g2snooker.onrender.com/api/member/join-page",
+    "idSource": "Owner copied exact LIFF ID and links",
+    "endpointVerified": true,
+    "endpointVerification": "Unauthenticated GET of LIFF URL returned public redirect page with exact liffEndpointUrl",
+    "scopesVerified": false,
+    "productionEnvironmentApplied": false
   }
 }
