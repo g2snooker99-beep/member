@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "mode": "review_candidate_only",
+  "createdOnBangkok": "2026-10-22",
+  "productionDeploymentApproved": false,
+  "productionWritesPerformed": 0,
+  "approvedPolicies": {
+    "approvalSource": "User approved all three stated policies on 2026-10-22",
+    "legacyRewards": "preserve_expired_history",
+    "legacyRewardsSnapshotCount": 20,
+    "oldBalances": "preserve_existing_points_and_month_hold_cross_month_awards",
+    "oldBalanceSnapshot": {
+      "accounts": 6,
+      "points": 134
+    },
+    "archiveCustody": "private_google_drive_owner_only",
+    "keyCustody": "separate_private_provider_no_key_uploaded_to_drive"
+  },
+  "sources": {
+    "member": {
+      "repository": "g2snooker99-beep/member",
+      "branch": "feature/secure-pos-points",
+      "testedCodeCommit": "c3e71c88fad822cdbc6a5c11a7da370ea4b31396",
+      "ci": "https://github.com/g2snooker99-beep/member/actions/runs/39709537392",
+      "tests": {
+        "firebase": 60,
+        "chromium": 5,
+        "failed": 0,
+        "skipped": 0
+      }
+    },
+    "pos": {
+      "repository": "g2snooker99-beep/g2snooker",
+      "branch": "feature/g2-member-integration",
+      "testedCodeCommit": "c327b3050dea0e3c84ff49a1f77395c09389290f",
+      "ci": "https://github.com/g2snooker99-beep/g2snooker/actions/runs/39618196222"
+    }
+  },
+  "targets": {
+    "memberProject": "member-3e17e",
+    "memberCodebase": "secure-member",
+    "memberRegion": "asia-southeast1",
+    "memberRuntimeIdentity": "g2-member-api@member-3e17e.iam.gserviceaccount.com",
+    "posRenderService": "srv-d76kd0nfte5s73em4r00",
+    "posOrigin": "https://g2snooker.onrender.com"
+  },
+  "checkpoint": {
+    "sourceCapturedAt": "2026-10-21T14:34:46.699578Z",
+    "documents": 962,
+    "members": 76,
+    "totalPoints": 241,
+    "pointHistory": 737,
+    "monthlyRewards": 20,
+    "encryptedBytes": 632788,
+    "encryptedSha256": "a77cd44eb4c2d9cab60860713dbbc9e452d8346cc897d228572a6d2ba5bfdd78",
+    "recordsSha256": "ce1b81a59fe72a240fa5989eed6ec1b4a0063dd16ac68773fa59a54d064916da",
+    "offsiteArchiveUploadVerified": true,
+    "offsiteArchiveReadbackVerified": true,
+    "separateKeyUploadVerified": true,
+    "separateKeyReadbackVerified": true,
+    "independentlyRetrievedPairDecryptVerified": true,
+    "priorCloudRestoreDocuments": 962,
+    "priorNormalizedSourceAndRestoreSha256": "abc43121cd9bc63d2207d1108c1201ffc9c191afc66dc52b33178c870f63d036",
+    "frozen": false,
+    "authorizesProductionMigration": false
+  },
+  "staging": {
+    "cloudRun": "eb610745-2a3a-4452-a9f7-806a99fe11d4",
+    "checks": 11,
+    "winzyPoints": 1,
+    "cleanupDeploy": "dep-dbcn1aavcj2c73f73bp0",
+    "activationFlagsEnabled": false
+  },
+  "beforeAnyProductionMutation": [
+    "Explicit approval of maintenance/deployment scope",
+    "Verify current production state and dedicated IAM; no billing upgrade without separate approval",
+    "Freeze relevant legacy Member writers, preserve POS sales/printing",
+    "Fresh frozen backup plus restore verification and reviewed private plan/backup hashes",
+    "Compute and approve the final deploy commit SHA; source commits alone do not approve a new merge SHA",
+    "Verify original production LINE channel/LIFF, owner ACL and exact POS database/release manifest"
+  ],
+  "deploymentSequenceAfterApproval": [
+    "Deploy coordinated secure backend/frontend/rules/indexes with mutations and enrollment/awards off",
+    "Apply only reviewed additive migration preserving all original balances/history/IDs",
+    "Read-only canary; compare by UID and audit held legacy balances",
+    "Activate enrollment and writes/award producer-consumer only after explicit activation approval"
+  ],
+  "rollback": {
+    "firstAction": "Disable mutation/enrollment/award producer and consumer gates",
+    "preserve": [
+      "all queues",
+      "all receipts",
+      "all member balances and history"
+    ],
+    "fallback": "compatible secure build or maintenance; never restore public-write legacy rules",
+    "restore": "separate namespace only; per-document production repairs need separate approval"
+  }
+}
