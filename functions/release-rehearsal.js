@@ -29,10 +29,12 @@ async function runReleaseRehearsal({db,auth,FieldValue,FieldPath,Timestamp,GeoPo
     assert.equal((await post("memberAddPoints",request)).body.data.duplicate,true);
     assert.equal((await scoped.collection("users").doc(U).get()).data().monthlyPoints,6);
     assert.equal((await post("memberCloseMonth",{month:"2026-10"})).status,403);
+    assert.equal((await post("memberPreviewMonth",{month:"2026-10"})).status,403);
     const ownerCustom=await auth.createCustomToken(A);
     const ownerLogin=await fetch("https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key="+config.apiKey,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:ownerCustom,returnSecureToken:true}),signal:AbortSignal.timeout(15000)});
     assert.equal(ownerLogin.status,200);const ownerToken=(await ownerLogin.json()).idToken;
     assert.deepEqual((await post("memberSession",{},ownerToken)).body.data.capabilities,{staff:true,admin:true});
+    const preview=await post("memberPreviewMonth",{month:"2026-10"},ownerToken);assert.equal(preview.status,200);assert.equal(preview.body.data.state,"closed");assert.equal(preview.body.data.shirtCount,3);assert.equal(preview.body.data.discountCount,1);
     const closed=await post("memberCloseMonth",{month:"2026-10"},ownerToken);assert.equal(closed.status,200);assert.equal(closed.body.data.duplicate,true);
     assert.equal((await post("memberSetStaff",{userId:S,role:"staff",isActive:false},ownerToken)).status,200);
 

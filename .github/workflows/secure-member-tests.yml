@@ -38,3 +38,9 @@ jobs:
       - name: Real Firestore emulator security and transaction tests
         working-directory: functions
         run: npx firebase emulators:exec --project demo-g2-member --config ../firebase.secure.json --only firestore,auth 'npm test'
+      - name: Install Chromium for UI acceptance
+        working-directory: functions
+        run: npx playwright install --with-deps chromium
+      - name: Real Chromium staff and admin UI acceptance
+        working-directory: functions
+        run: npm run test:browser

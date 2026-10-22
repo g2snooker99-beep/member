@@ -62,7 +62,21 @@ async function sendPending(){
 }
 $("retry").onclick=()=>action(sendPending);
 $("open").onclick=()=>action(()=>call("memberOpenMonth",{month:$("month").value}));
-$("close").onclick=()=>action(async()=>{await call("memberCloseMonth",{month:$("month").value});await refresh();return "ปิดรอบและเก็บประวัติสำเร็จ";});
+async function previewSelectedMonth(){
+  const data=await call("memberPreviewMonth",{month:$("month").value});
+  $("monthPreview").replaceChildren();
+  row("monthPreview",`เดือน ${data.monthId} — ${data.state==="closed"?"ปิดรอบแล้ว":"สรุปเบื้องต้น คะแนนอาจเปลี่ยนก่อนปิดรอบ"}`);
+  data.top3.forEach(p=>row("monthPreview",`${p.rank}. ${p.nickname} ${p.points} แต้ม`));
+  row("monthPreview",`เสื้อ Limited ${data.shirtCount} สิทธิ์ / ส่วนลด 10% ${data.discountCount} สิทธิ์`);
+  return data;
+}
+$("preview").onclick=()=>action(async()=>{await previewSelectedMonth();return "ตรวจสรุปแล้ว ยังไม่มีการปิดรอบหรือแก้คะแนน";});
+$("close").onclick=()=>action(async()=>{
+  const preview=await previewSelectedMonth();
+  if(!preview.canClose)throw Error(preview.state==="closed"?"เดือนนี้ปิดรอบแล้ว":"ปิดได้เฉพาะเดือนที่จบแล้วและเปิดรับคะแนนไว้");
+  if(!window.confirm(`ยืนยันปิดรอบ ${preview.monthId}? สรุปเบื้องต้น: เสื้อ ${preview.shirtCount} สิทธิ์ ส่วนลด ${preview.discountCount} สิทธิ์ ระบบจะเก็บประวัติและเริ่มคะแนนรอบใหม่`))return "ยกเลิกการปิดรอบ";
+  await call("memberCloseMonth",{month:preview.monthId});await refresh();await previewSelectedMonth();return "ปิดรอบและเก็บประวัติสำเร็จ";
+});
 $("redeem").onclick=()=>action(async()=>{
   const result=await call("memberRedeemReward",{rewardId:$("rewardId").value.trim(),billRef:$("billRef").value.trim()});
   await refresh();return result.duplicate?"สิทธิ์นี้ใช้แล้ว ห้ามส่งมอบเสื้อหรือให้ส่วนลดซ้ำ":result.type==="discount10"?"บันทึกใช้ส่วนลดแล้ว สำหรับบิล "+result.billRef+" เท่านั้น":"บันทึกส่งมอบเสื้อ Limited แล้ว";

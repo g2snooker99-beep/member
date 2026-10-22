@@ -27,15 +27,24 @@ async function releaseScenarios({db,root,FieldValue,FieldPath,Timestamp,GeoPoint
   await assert.rejects(service.addPoints(S,{...d,requestId:"aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}),{code:"failed-precondition"});
   assert.equal((await db.collection("users").doc(ids[5]).get()).data().monthlyPoints,10);
   checks.push("manual_lost_ack_recovered_across_month_boundary");
+  await assert.rejects(service.previewMonth(S,"2026-10"),{code:"permission-denied"});
+  const beforePreview=(await db.collection("users").get()).docs.map(d=>[d.id,safety.encode(d.data())]);
+  const preview=await service.previewMonth(A,"2026-10");
+  assert.deepEqual(preview.top3.map(x=>x.points),[30,25,25]);
+  assert.equal(preview.shirtCount,3);assert.equal(preview.discountCount,1);assert.equal(preview.canClose,true);
+  assert.deepEqual((await db.collection("users").get()).docs.map(d=>[d.id,safety.encode(d.data())]),beforePreview);
+  checks.push("admin_month_preview_read_only_matches_reward_eligibility");
   // Simulate a process dying after one immutable snapshot/reset committed.
   await db.collection("posAwardMonths").doc("2026-10").update({state:"closing"});
   const first=(await db.collection("users").doc(ids[0]).get()).data();
   await db.collection("seasonResults").doc("2026-10").collection("members").doc(ids[0]).create({userId:ids[0],nickname:first.nickname,memberId:first.memberId,points:30,eligible:true});
   await db.collection("users").doc(ids[0]).update({monthlyPoints:4,pointsMonth:"2026-11"});
+  await assert.rejects(service.previewMonth(A,"2026-10"),{code:"failed-precondition"});
   await assert.rejects(service.closeMonth(S,"2026-10"),{code:"permission-denied"});
   const result=await service.closeMonth(A,"2026-10");
   assert.deepEqual(result.top3.map(x=>[x.userId,x.points]),[[ids[0],30],[ids[2],25],[ids[1],25]]);
   assert.equal((await service.closeMonth(A,"2026-10")).duplicate,true);
+  const finalPreview=await service.previewMonth(A,"2026-10");assert.equal(finalPreview.canClose,false);assert.equal(finalPreview.state,"closed");assert.deepEqual(finalPreview.top3,result.top3.map(({rank,nickname,points})=>({rank,nickname,points})));
   assert.equal((await db.collection("users").doc(ids[0]).get()).data().monthlyPoints,4);
   assert.equal((await db.collection("users").doc(ids[0]).get()).data().lifetimeHours,17.5);
   const rewards=await db.collection("monthlyRewards").get();assert.equal(rewards.size,4);
@@ -54,6 +63,13 @@ async function releaseScenarios({db,root,FieldValue,FieldPath,Timestamp,GeoPoint
   const second="2026-10_"+ids[5]+"_discount10";
   await db.collection("monthlyRewards").doc(second).create({userId:ids[5],monthKey:"2026-10",type:"discount10",status:"available"});
   await assert.rejects(service.redeem(S,{rewardId:second,billRef:"TEST-RELEASE-BILL"}),{code:"already-exists"});
+  const badReward="trial-guard";
+  for(const marker of [{isTest:true},{dummyOnly:true},{testRunId:runId},{testRun:runId},{usedAt:new Timestamp(1700000000,0)}]){
+    await db.collection("monthlyRewards").doc(badReward).set({userId:ids[5],monthKey:"2026-10",type:"discount10",status:"available",...marker});
+    await assert.rejects(service.redeem(S,{rewardId:badReward,billRef:"TEST-NEVER-DELIVER"}),{code:"failed-precondition"});
+    assert.equal((await db.collection("monthlyRewards").doc(badReward).get()).data().status,"available");
+  }
+  checks.push("trial_and_previously_used_reward_cannot_be_delivered");
   clock=new Date("2026-12-01T00:00:00Z");
   await assert.rejects(service.redeem(S,{rewardId:second,billRef:"TEST-FRESH-BILL"}),{code:"failed-precondition"});
   assert.equal((await db.collection("rewardRedemptions").get()).size,2);
@@ -97,6 +113,20 @@ async function releaseScenarios({db,root,FieldValue,FieldPath,Timestamp,GeoPoint
   const event=(await legacy.collection("pointTransactions").doc("old-event").get()).data();assert.equal(event.points,7);const originalEvent=safety.decode(original.records.find(r=>r.path==="pointTransactions/old-event").data,{Timestamp,GeoPoint,db:physicalDb});assert.equal(event.timestamp.nanoseconds,originalEvent.timestamp.nanoseconds);assert.equal(event.createdAt.nanoseconds,originalEvent.timestamp.nanoseconds);
   const board=await legacy.collection("publicLeaderboard").get();assert.equal(board.size,1);assert.equal(board.docs[0].data().points,23);
   checks.push("additive_migration_preserves_member_ids_scores_history_rewards_and_retry");
+
+
+  const historicalRoot=root.collection("migrationFixtures").doc("historical");
+  const historical={projectId:physicalDb.projectId,testMigrationNamespace:historicalRoot.path,collection:n=>historicalRoot.collection(n),doc:p=>physicalDb.doc(historicalRoot.path+"/"+p),runTransaction:fn=>physicalDb.runTransaction(fn)};
+  for(const [id,data] of [["old-used",{status:"active",usedAt:new Timestamp(1600000000,0)}],["duplicate",{status:"active"}],["trial",{status:"active",isTest:true}]]){
+    await historical.collection("monthlyRewards").doc(id).create({userId:ids[0],monthKey:"2026-07",rewardType:"discount_10",unknown:"keep",...data});
+  }
+  const historicalBefore=(await historical.collection("monthlyRewards").get()).docs.map(d=>({id:d.id,data:d.data()}));
+  const historyPlan={ready:true,updates:[],authority:[],sourceBackupSha256:"fixture-backup",rewards:mapping.planRewardMigration(historicalBefore,{policy:"preserve_expired_history",asOfMonth:"2026-10"})};
+  historyPlan.planSha256=planDigest(historyPlan);
+  const preserved=await applyReviewedPlan({db:historical,plan:historyPlan,approvedPlanSha256:historyPlan.planSha256,backupManifestSha256:"fixture-backup",FieldValue,writersPaused:true});
+  assert.equal(preserved.preservedHistoricalRewards,3);assert.equal(preserved.applied,0);
+  assert.deepEqual((await historical.collection("monthlyRewards").get()).docs.map(d=>({id:d.id,data:d.data()})),historicalBefore);
+  checks.push("expired_legacy_duplicates_used_and_trial_history_preserved_without_writes");
 
   return {checks,backupDocuments:backup.count,backupSha256:backup.recordsSha256,restoreSha256:copy.recordsSha256,productionWrites:0};
 }

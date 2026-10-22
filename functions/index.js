@@ -24,6 +24,7 @@ exports.memberRegister=callable((s,u,d)=>s.register(u,d));
 exports.memberSession=callable((s,u)=>s.session(u),false);
 exports.memberAddPoints=callable((s,u,d)=>s.addPoints(u,d));
 exports.memberOpenMonth=callable((s,u,d)=>s.openMonth(u,d.month));
+exports.memberPreviewMonth=callable((s,u,d)=>s.previewMonth(u,d.month),false);
 exports.memberCloseMonth=callable((s,u,d)=>s.closeMonth(u,d.month));
 exports.memberRedeemReward=callable((s,u,d)=>s.redeem(u,d));
 exports.memberSetStaff=callable((s,u,d)=>s.setStaff(u,d));

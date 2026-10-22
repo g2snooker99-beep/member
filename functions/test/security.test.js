@@ -184,7 +184,7 @@ test("release scenarios: Top3, resumed close, rewards and encrypted restore",asy
   await seed();const {randomUUID}=require("node:crypto"),runId=randomUUID(),root=db.collection("releaseRehearsals").doc(runId);
   const scoped={collection:n=>root.collection(n),runTransaction:fn=>db.runTransaction(fn)};
   const result=await require("../release-scenarios").releaseScenarios({db:scoped,root,physicalDb:db,FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,Timestamp:admin.firestore.Timestamp,GeoPoint:admin.firestore.GeoPoint,runId});
-  assert.equal(result.checks.length,6);assert.equal(result.backupSha256,result.restoreSha256);
+  assert.equal(result.checks.length,9);assert.equal(result.backupSha256,result.restoreSha256);
 });
 test("rules deny reward forgery, consumed reward changes, deletions and private receipts",async()=>{
   await seed();const client=env.authenticatedContext(U,{role:"admin"}).firestore(),staff=env.authenticatedContext(S).firestore();
@@ -197,4 +197,21 @@ test("rules deny reward forgery, consumed reward changes, deletions and private 
   await assertFails(getDoc(doc(client,"users",OTHER)));
   await db.collection("users").doc(S).update({isActive:false});
   await assertFails(getDoc(doc(staff,"users",U)));
+});
+
+test("rules reject create-update-delete bypasses for every client role and private collection",async()=>{
+ await seed();
+ const {deleteDoc}=require("firebase/firestore");
+ const clients=[env.unauthenticatedContext().firestore(),env.authenticatedContext(U,{role:"admin"}).firestore(),env.authenticatedContext(S).firestore(),env.authenticatedContext(A).firestore()];
+ const paths=["users/"+U,"memberStaffAccess/"+S,"monthlyRewards/protected","pointTransactions/protected","seasonResults/2026-09","publicLeaderboard/protected","rewardRedemptions/protected","rewardBillClaims/protected","migrationRuns/protected","testOwnerApprovals/protected","releaseRehearsals/protected"];
+ for(const path of paths)await db.doc(path).set({userId:U,role:"member",monthlyPoints:7,status:"used"});
+ for(const client of clients){
+  for(const path of paths){
+   await assertFails(updateDoc(doc(client,path),{role:"admin",monthlyPoints:999,status:"available"}));
+   await assertFails(deleteDoc(doc(client,path)));
+  }
+  await assertFails(setDoc(doc(client,"users","new-client-created"),{role:"member",monthlyPoints:0,isActive:true}));
+ }
+ const member=clients[1];
+ for(const path of ["rewardRedemptions/protected","rewardBillClaims/protected","migrationRuns/protected","testOwnerApprovals/protected","releaseRehearsals/protected"])await assertFails(getDoc(doc(member,path)));
 });

@@ -10,7 +10,7 @@ async function main(args=process.argv.slice(2),env=process.env){
   if(env.G2_BACKUP_KEY_FILE){key=await fs.readFile(env.G2_BACKUP_KEY_FILE);if(key.length!==32)throw Error("Separate 32-byte key file required");}
   else{if(!/^[a-f0-9]{64}$/i.test(env.G2_BACKUP_KEY_HEX||""))throw Error("Separate backup encryption key required");key=Buffer.from(env.G2_BACKUP_KEY_HEX,"hex");}
   if(command==="review-checkpoint"){
-    return require("./review-migration-backup").reviewMigrationBackup({backup:safety.unseal(await fs.readFile(input,"utf8"),key),monthId:env.G2_MIGRATION_BALANCE_MONTH,ownerUid:env.MEMBER_OWNER_LINE_UID,approvedStaff:(env.G2_APPROVED_STAFF_UIDS||"").split(",").filter(Boolean)});
+    return require("./review-migration-backup").reviewMigrationBackup({backup:safety.unseal(await fs.readFile(input,"utf8"),key),monthId:env.G2_MIGRATION_BALANCE_MONTH,ownerUid:env.MEMBER_OWNER_LINE_UID,approvedStaff:(env.G2_APPROVED_STAFF_UIDS||"").split(",").filter(Boolean),rewardPolicy:env.G2_LEGACY_REWARD_POLICY});
   }
   if(command==="inspect"){
     const b=safety.unseal(await fs.readFile(input,"utf8"),key);
@@ -40,7 +40,7 @@ async function main(args=process.argv.slice(2),env=process.env){
       const rows=b.records.map(r=>({path:r.path,data:safety.decode(r.data,{Timestamp:admin.firestore.Timestamp,GeoPoint:admin.firestore.GeoPoint,db})}));
       const {planMigration,planRewardMigration,planHistoryMigration}=require("./migration-plan");
       const plan=planMigration({members:rows.filter(r=>/^users\/[^/]+$/.test(r.path)).map(r=>({id:r.path.split("/")[1],data:r.data})),monthId:env.G2_MIGRATION_BALANCE_MONTH,ownerUid:env.MEMBER_OWNER_LINE_UID,approvedStaff:(env.G2_APPROVED_STAFF_UIDS||"").split(",").filter(Boolean)});
-      plan.rewards=planRewardMigration(rows.filter(r=>/^monthlyRewards\/[^/]+$/.test(r.path)).map(r=>({id:r.path.split("/")[1],data:r.data})));
+      plan.rewards=planRewardMigration(rows.filter(r=>/^monthlyRewards\/[^/]+$/.test(r.path)).map(r=>({id:r.path.split("/")[1],data:r.data})),env.G2_LEGACY_REWARD_POLICY?{policy:env.G2_LEGACY_REWARD_POLICY,asOfMonth:env.G2_MIGRATION_BALANCE_MONTH}:{});
       plan.history=planHistoryMigration({members:rows.filter(r=>/^users\/[^/]+$/.test(r.path)).map(r=>({id:r.path.split("/")[1],data:r.data})),history:rows.filter(r=>/^pointTransactions\/[^/]+$/.test(r.path)).map(r=>({id:r.path.split("/")[1],data:r.data}))});
       plan.ready=plan.ready&&plan.rewards.ready&&plan.history.ready;plan.sourceBackupSha256=b.recordsSha256;
       plan.planSha256=require("./apply-reviewed-migration").planDigest(plan);

@@ -6,6 +6,7 @@ async function applyReviewedPlan({db,plan,approvedPlanSha256,backupManifestSha25
  if(!writersPaused||!plan.ready||planDigest(plan)!==approvedPlanSha256||plan.planSha256!==approvedPlanSha256||!backupManifestSha256||plan.sourceBackupSha256!==backupManifestSha256)throw Error("Reviewed plan, verified backup and paused writers required");
  if(db.projectId==="member-3e17e"){if(!productionApproval)throw Error("Explicit production approval required");}
  else if(!["g2-member-test","demo-g2-member"].includes(db.projectId)||!db.testMigrationNamespace)throw Error("Isolated migration fixture required");
+ const preservedHistoricalRewards=await require("./legacy-reward-history").verifyPreservedRewardHistory({db,plan:plan.rewards});
  const items=[...plan.updates,...(plan.rewards?.updates||[]),...(plan.history?.updates||[])];
  let applied=0,duplicates=0;
  for(const item of items){
@@ -46,6 +47,6 @@ async function applyReviewedPlan({db,plan,approvedPlanSha256,backupManifestSha25
    tx.create(receipt,{action:"publicProjection",appliedAt:FieldValue.serverTimestamp()});
   });
  }
- return {applied,duplicates,balancesReset:0,importedTestScores:0};
+ return {applied,duplicates,preservedHistoricalRewards,balancesReset:0,importedTestScores:0};
 }
 module.exports={applyReviewedPlan,planDigest};

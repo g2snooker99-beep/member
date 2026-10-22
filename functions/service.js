@@ -79,6 +79,41 @@ function buildService({db,auth,FieldValue,FieldPath,channelId,ownerUid,verifyLin
       return {state:"open"};
     });
   }
+
+  function rankMember(top3,p){
+    if(p.eligible!==true||p.points<=0)return;
+    top3.push({...p});top3.sort((a,b)=>b.points-a.points||(a.joinedAtMillis||0)-(b.joinedAtMillis||0)||a.userId.localeCompare(b.userId,"en"));top3.splice(3);
+  }
+  async function previewMonth(uid,month){
+    if(!MONTH.test(month||"")||month>monthAt(now()))fail("invalid-argument","Current or completed Bangkok month only");
+    await identity(uid,["admin"]);
+    const gate=await db.collection("posAwardMonths").doc(month).get(),state=gate.exists?gate.data().state:"unopened";
+    if(!["unopened","open","closed"].includes(state))fail("failed-precondition","Month close is in progress; resume the existing close");
+    const source=state==="closed"?db.collection("seasonResults").doc(month).collection("members"):db.collection("users");
+    let cursor=null,memberCount=0,eligibleMembers=0,totalPoints=0,atLeast15=0;const top3=[];
+    for(;;){
+      let q=source.orderBy(FieldPath.documentId()).limit(100);if(cursor)q=q.startAfter(cursor);
+      const page=await q.get();if(page.empty)break;
+      for(const row of page.docs){
+        const p=row.data();if(state!=="closed"&&p.role!=="member")continue;
+        if(state!=="closed"&&!p.pointsMonth&&p.monthlyPoints>0)fail("failed-precondition","Legacy balance needs migration");
+        const points=state==="closed"?p.points:p.pointsMonth===month?p.monthlyPoints:0;
+        if(!Number.isSafeInteger(points)||points<0)fail("failed-precondition","Invalid balance");
+        memberCount++;totalPoints+=points;if(!Number.isSafeInteger(totalPoints))fail("failed-precondition","Invalid total balance");
+        const eligible=state==="closed"?p.eligible===true:p.isActive===true;
+        if(eligible){eligibleMembers++;if(points>=15)atLeast15++;}
+        rankMember(top3,{userId:row.id,nickname:p.nickname||"",points,eligible,joinedAtMillis:state==="closed"?p.joinedAtMillis||0:p.createdAt?.toMillis?.()||0});
+      }
+      cursor=page.docs.at(-1);
+    }
+    // Recheck authority and the gate after paging; previews never freeze or reset scores.
+    await identity(uid,["admin"]);
+    const after=await db.collection("posAwardMonths").doc(month).get();
+    if((after.exists?after.data().state:"unopened")!==state)fail("failed-precondition","Month state changed; refresh preview");
+    return {monthId:month,state,provisional:state!=="closed",memberCount,eligibleMembers,totalPoints,
+      top3:top3.map(({nickname,points},i)=>({rank:i+1,nickname,points})),shirtCount:top3.length,
+      discountCount:atLeast15-top3.filter(p=>p.points>=15).length,canClose:state==="open"&&month<monthAt(now())};
+  }
   async function closeMonth(uid,month){
     if(!MONTH.test(month||"")||month>=monthAt(now()))fail("invalid-argument","Completed Bangkok month only");
     const gate=db.collection("posAwardMonths").doc(month),result=db.collection("seasonResults").doc(month),snapshots=result.collection("members");
@@ -117,7 +152,7 @@ function buildService({db,auth,FieldValue,FieldPath,channelId,ownerUid,verifyLin
       const page=await q.get();if(page.empty)break;
       for(const row of page.docs){
         const p=row.data();if(top3.length===3&&p.points<top3[2].points){finished=true;break;}
-        if(p.eligible===true&&p.points>0){top3.push({...p});top3.sort((a,b)=>b.points-a.points||(a.joinedAtMillis||0)-(b.joinedAtMillis||0)||a.userId.localeCompare(b.userId,"en"));top3.splice(3);}
+        rankMember(top3,p);
       }
       if(page.docs.at(-1).data().points<=0)break;cursor=page.docs.at(-1);
     }
@@ -153,6 +188,8 @@ function buildService({db,auth,FieldValue,FieldPath,channelId,ownerUid,verifyLin
       await identity(uid,["staff","admin"],tx);const r=await tx.get(ref);
       if(!r.exists)fail("invalid-argument","Reward missing");
       const reward=r.data();
+      if(reward.isTest===true||reward.dummyOnly||reward.testRun||reward.testRunId)fail("failed-precondition","Trial rewards cannot be redeemed");
+      if(reward.status!=="used"&&reward.usedAt)fail("failed-precondition","Previously used reward requires review");
       if(!["top1","top2","top3","discount10"].includes(reward.type)||!UID.test(reward.userId||""))fail("failed-precondition","Invalid reward type or member");
       if(reward.type==="discount10"&&!billRef)fail("invalid-argument","Bill reference required for discount");
       if(reward.status==="used"){
@@ -187,6 +224,6 @@ function buildService({db,auth,FieldValue,FieldPath,channelId,ownerUid,verifyLin
       return {updated:true};
     });
   }
-  return {exchange,register,session,addPoints,openMonth,closeMonth,redeem,setStaff,identity};
+  return {exchange,register,session,addPoints,openMonth,previewMonth,closeMonth,redeem,setStaff,identity};
 }
 module.exports={buildService,monthAt};

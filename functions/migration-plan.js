@@ -33,7 +33,9 @@ function planMigration({members,monthId,ownerUid,approvedStaff=[]}){
   const payload={projections,sourceProject:"member-3e17e",targetProject:"member-3e17e",mode:"in_place_additive_only",monthId,ownerUid,members:seen.size,updates,authority,problems,writesPerformed:0};
   return {...payload,ready:problems.length===0,planSha256:createHash("sha256").update(JSON.stringify(payload)).digest("hex")};
 }
-function planRewardMigration(rewards){
+function planRewardMigration(rewards,options={}){
+  if(options.policy&&options.policy!=="preserve_expired_history")throw Error("Unknown legacy reward policy");
+  if(options.policy==="preserve_expired_history")return require("./legacy-reward-history").planExpiredRewardHistory(rewards,options.asOfMonth);
   const problems=[],updates=[],seen=new Map();
   for(const {id,data:p} of rewards){
     if(p.isTest===true||p.dummyOnly||p.testRun||p.testRunId){problems.push({id,reason:"trial_reward_must_remain_unchanged"});continue;}

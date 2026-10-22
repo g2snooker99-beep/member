@@ -10,7 +10,7 @@ class Timestamp{
 class GeoPoint{constructor(latitude,longitude){this.latitude=latitude;this.longitude=longitude;}}
 const sha=s=>createHash("sha256").update(s).digest("hex");
 const trial=p=>p.isTest===true||!!(p.dummyOnly||p.testRun||p.testRunId);
-function reviewMigrationBackup({backup,monthId,ownerUid,approvedStaff=[]}){
+function reviewMigrationBackup({backup,monthId,ownerUid,approvedStaff=[],rewardPolicy}){
  if(backup.sourceProject!=="member-3e17e"||backup.count!==backup.records?.length||sha(JSON.stringify(backup.records))!==backup.recordsSha256)throw Error("Verified real-source backup required");
  const original=JSON.stringify(backup),seen=new Set();
  const db={doc:p=>({path:p,firestore:{}})};
@@ -20,7 +20,7 @@ function reviewMigrationBackup({backup,monthId,ownerUid,approvedStaff=[]}){
  });
  const select=collection=>rows.filter(r=>r.path.startsWith(collection+"/")&&r.path.split("/").length===2).map(r=>({id:r.path.split("/")[1],data:r.data}));
  const members=select("users"),rewards=select("monthlyRewards"),history=select("pointTransactions");
- const memberPlan=planMigration({members,monthId,ownerUid,approvedStaff}),rewardPlan=planRewardMigration(rewards),historyPlan=planHistoryMigration({members,history});
+ const memberPlan=planMigration({members,monthId,ownerUid,approvedStaff}),rewardPlan=planRewardMigration(rewards,rewardPolicy?{policy:rewardPolicy,asOfMonth:monthId}:{}),historyPlan=planHistoryMigration({members,history});
  const describe=plan=>({ready:plan.ready,updates:plan.updates.length,problemCounts:plan.problems.reduce((a,p)=>(a[p.reason]=(a[p.reason]||0)+1,a),{})});
  let protectedFieldChanges=0;
  for(const update of memberPlan.updates){
@@ -44,6 +44,7 @@ function reviewMigrationBackup({backup,monthId,ownerUid,approvedStaff=[]}){
   rewardMonths:rewards.reduce((a,r)=>(a[r.data.monthKey]=(a[r.data.monthKey]||0)+1,a),{}),
   duplicateRewardGroups:duplicateGroups.length,additionalDuplicateRewards:duplicateGroups.reduce((s,n)=>s+n-1,0),
   trialRewards:rewards.filter(r=>trial(r.data)).length,trialRewardsAlreadyUsed:rewards.filter(r=>trial(r.data)&&(r.data.status==="used"||r.data.usedAt)).length,
+  rewardPolicy:rewardPolicy||"strict_mapping",preservedHistoricalRewards:rewardPlan.preserved?.length||0,
   plans:{members:describe(memberPlan),rewards:describe(rewardPlan),history:describe(historyPlan)},
   mappingReady:memberPlan.ready&&rewardPlan.ready&&historyPlan.ready,
   writersPaused:backup.consistentWithPausedWriters===true,readyForCutover:false,ownerLoginVerified:false,
