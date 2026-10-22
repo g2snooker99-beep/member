@@ -1,0 +1,56 @@
+{
+  "mode": "offline_review_only",
+  "sourceProject": "member-3e17e",
+  "sourceRecordsSha256": "ce1b81a59fe72a240fa5989eed6ec1b4a0063dd16ac68773fa59a54d064916da",
+  "documents": 962,
+  "members": 76,
+  "totalMemberPoints": 241,
+  "history": 737,
+  "rewards": 20,
+  "memberMonths": {
+    "2026-08": 20,
+    "2026-09": 5,
+    "2026-10": 10,
+    "missing": 32,
+    "2026-07": 9
+  },
+  "rewardMonths": {
+    "2026-07": 13,
+    "2026-08": 7
+  },
+  "duplicateRewardGroups": 3,
+  "additionalDuplicateRewards": 4,
+  "trialRewards": 3,
+  "trialRewardsAlreadyUsed": 2,
+  "rewardPolicy": "preserve_expired_history",
+  "preservedHistoricalRewards": 20,
+  "plans": {
+    "members": {
+      "ready": true,
+      "updates": 32,
+      "problemCounts": {}
+    },
+    "rewards": {
+      "ready": true,
+      "updates": 0,
+      "problemCounts": {}
+    },
+    "history": {
+      "ready": true,
+      "updates": 0,
+      "problemCounts": {}
+    }
+  },
+  "mappingReady": true,
+  "writersPaused": false,
+  "readyForCutover": false,
+  "ownerLoginVerified": false,
+  "invariants": {
+    "sourceUnchanged": true,
+    "protectedFieldChanges": 0,
+    "balancesReset": 0,
+    "importedTestScores": 0
+  },
+  "firestoreWrites": 0,
+  "executablePlanProduced": false
+}

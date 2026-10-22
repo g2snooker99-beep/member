@@ -1,0 +1,42 @@
+{
+  "score": 5,
+  "summary": "Rules ที่ใช้กับ secure codebase ปฏิเสธ client writes ทุกบทบาท ใช้ server-owned ACL และ active profile ที่ตรงกัน; ใช้ได้เฉพาะขอบเขต Staging/Rules ที่ทดสอบ ไม่ใช่การรับรอง Production ที่ยังไม่ได้เปลี่ยน",
+  "findings": [],
+  "scope": {
+    "rulesFile": "firestore.secure.rules",
+    "productionRulesChanged": false,
+    "productionLegacyAdminSdkWritersRetired": false,
+    "knownProductionReleaseGate": "หยุด legacy writers และ deploy Rules/backend ที่เข้ากันหลังเจ้าของอนุมัติ"
+  },
+  "checklist": {
+    "createUpdateDeleteBypass": "deny-all client writes",
+    "authoritySource": "memberStaffAccess written only by trusted server",
+    "businessLogic": "own profile/history/rewards; privileged reads require matching live ACL",
+    "resourceExhaustion": "no client document creation or update; HTTP body/rate limits",
+    "typeSafety": "all writes validated by service; no client write path",
+    "ownership": "own data or live staff only",
+    "privateData": "private receipts/ACL/audit/migration/rehearsal denied; leaderboard has nickname/points/month only"
+  },
+  "validation": {
+    "emulator": {
+      "tests": 60,
+      "passed": 60,
+      "failed": 0,
+      "skipped": 0
+    },
+    "chromium": {
+      "tests": 5,
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "scope": "real Chromium, deterministic SDK/transport fixtures"
+    },
+    "cloud": {
+      "checks": 11,
+      "passed": true,
+      "runId": "eb610745-2a3a-4452-a9f7-806a99fe11d4"
+    },
+    "ci": "https://github.com/g2snooker99-beep/member/actions/runs/39709537392",
+    "testedCommit": "c3e71c88fad822cdbc6a5c11a7da370ea4b31396"
+  }
+}
