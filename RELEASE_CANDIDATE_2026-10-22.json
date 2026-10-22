@@ -115,7 +115,7 @@
   "executionState": {
     "mainBranchesUpdated": false,
     "writersPaused": false,
-    "preflight": "member_backend_deployed_on_hold_waiting_actual_pos_binding",
+    "preflight": "waiting_for_local_secure_pos_connection_input",
     "renderAccess": "verified",
     "gitBranchesFastForwardEligible": true,
     "firebaseCliVersion": "15.34.0",
@@ -169,8 +169,7 @@
     "frozen": false
   },
   "remainingExternalInputs": [
-    "Verify openid/profile scopes in LIFF configuration or successful real LINE authorization before activation",
-    "Production POS backup/operator connectivity and process clock confirmation; Render connector cannot execute Shell commands"
+    "Production POS database connection supplied through local hidden input, encrypted with Windows account protection and restricted local ACL; no password in chat. Needed for backup and additive schema operations because Render connector has no command execution."
   ],
   "posBindingObservation": {
     "source": "Owner-run read-only Render Shell command; screenshot 20261022-064752",
@@ -195,7 +194,12 @@
     "idSource": "Owner copied exact LIFF ID and links",
     "endpointVerified": true,
     "endpointVerification": "Unauthenticated GET of LIFF URL returned public redirect page with exact liffEndpointUrl",
-    "scopesVerified": false,
-    "productionEnvironmentApplied": false
+    "scopesVerified": true,
+    "productionEnvironmentApplied": false,
+    "scopesVerification": "Owner explicitly confirmed configuration correct and authorized continuation",
+    "scopes": [
+      "openid",
+      "profile"
+    ]
   }
 }
