@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-22T08:30:28.115Z",
+  "state": "maintenance_waiting_for_corrected_member_offsite_authorization",
+  "productionRolloutApproved": true,
+  "activationCompleted": false,
+  "source": {
+    "memberTested": "c3e71c88fad822cdbc6a5c11a7da370ea4b31396",
+    "posTested": "c327b3050dea0e3c84ff49a1f77395c09389290f",
+    "memberMain": "2a99878e68e80b82eefa3f11ab9f82fa28725e01",
+    "posMain": "a592ed96d476688a725f3830ab516e141ae93cec"
+  },
+  "production": {
+    "maintenance": true,
+    "secureMemberFunctions": 10,
+    "mutationGatesEnabled": false,
+    "secureRulesDeployed": true,
+    "legacyWritersRestricted": 13,
+    "legacySchedulesPaused": 3,
+    "posCodeChanged": false,
+    "posSchemaPrepared": false,
+    "additiveUserMonthMetadataApplied": 32,
+    "ownerAclCreated": 1,
+    "publicProjectionsCreated": 36,
+    "originalMigrationReceiptsRetained": 68,
+    "balancesReset": 0,
+    "trialPointsPromoted": 0
+  },
+  "preservation": {
+    "members": 76,
+    "monthlyPointTotal": 241,
+    "pointHistory": 737,
+    "legacyMonthlyRewards": 20,
+    "heldOldMonthMembers": 6,
+    "heldOldMonthPoints": 134,
+    "originalRealDocumentsCompared": 962
+  },
+  "correctedBackup": {
+    "runId": "493520e1-c9cb-47c3-a837-9954e7732e45",
+    "documents": 962,
+    "nestedPathsCorrected": 91,
+    "recordsSha256": "a0e5baee2e32a316f1c000da6e94062e85fe6becc84fc176d61344cc8402945a",
+    "encryptedSha256": "783a661ae3f01ae28eb9137cd25b1d83eefd160e7bf9e2567bb746a2961d013e",
+    "actualRestoreVerified": true,
+    "sourcePathFidelityVerified": true,
+    "offsiteVerified": false,
+    "independentOffsitePairVerified": false
+  },
+  "correctedPlan": {
+    "sha256": "222a0ef4a456cae174b027678f3dc02363602a27a600dc3b3538897077fc3f88",
+    "sameActionsAsOriginal": true,
+    "provenanceAdoptionApplied": false
+  },
+  "supersededBackup": {
+    "recordsSha256": "28e83fedd64fad376234835f470f2553e59a529ceee49f5e77cacbfd8e2c889b",
+    "reason": "Accelerated operator adapter omitted child collection IDs; internal restore hash did not prove fidelity to real source paths.",
+    "retainedForAudit": true,
+    "oldReceiptMarkedPathFidelityFailed": true,
+    "oldRestoreVerifiedRevoked": true
+  },
+  "canary": {
+    "operatorReadOnly": true,
+    "realProductionLineBrowserLoginObserved": false,
+    "ownerStaffAdmin": true,
+    "untrustedLegacyPrivilegesDenied": 6,
+    "top3Count": 3,
+    "currentMonthMemberPoints": 107,
+    "monthState": "unopened",
+    "canCloseCurrentMonth": false,
+    "originalMetadataReceiptsVerified": 32,
+    "originalProjectionReceiptsVerified": 36,
+    "remoteMutationEndpointsDisabled": 6,
+    "backupRegressionTestsPassed": 4
+  },
+  "posBackup": {
+    "tables": 27,
+    "bills": 2075,
+    "actualPgRestoreVerified": true,
+    "offsiteReadbackAndDecryptVerified": true,
+    "productionDatabaseWritesByBackup": 0
+  },
+  "blocker": {
+    "action": "Upload corrected encrypted Member archive to existing private Google Drive backup folder and keep its key separately",
+    "automaticReviewRejected": true,
+    "reason": "Reviewer interpreted latest offsite authorization as POS-only; explicit Member backup destination authorization required."
+  },
+  "remaining": [
+    "Corrected Member offsite archive/key custody and independent readback",
+    "Append-only migration provenance correction after rechecking original receipts and documents; retain old records",
+    "POS source deployment with awards and enrollment disabled, additive schema and pinned release manifest",
+    "Secure Member frontend/indexes and production authenticated canary",
+    "Open month and enable approved activation gates only after all release checks",
+    "Verify preserved data and queue/restart health; record rollback bindings"
+  ]
+}
