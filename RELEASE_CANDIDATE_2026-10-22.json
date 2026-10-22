@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "mode": "review_candidate_only",
+  "mode": "production_authorized_preflight",
   "createdOnBangkok": "2026-10-22",
-  "productionDeploymentApproved": false,
+  "productionDeploymentApproved": true,
   "productionWritesPerformed": 0,
   "approvedPolicies": {
     "approvalSource": "User approved all three stated policies on 2026-10-22",
@@ -94,5 +94,34 @@
     ],
     "fallback": "compatible secure build or maintenance; never restore public-write legacy rules",
     "restore": "separate namespace only; per-document production repairs need separate approval"
+  },
+  "authorization": {
+    "source": "User message: อนุมัติ ทำให้เสร็จเลย",
+    "dateBangkok": "2026-10-22",
+    "scope": [
+      "production maintenance",
+      "fresh frozen backup",
+      "reviewed additive migration",
+      "coordinated deploy",
+      "safe activation after successful canary"
+    ],
+    "constraints": [
+      "preserve all real scores and history",
+      "never promote test points",
+      "preserve 20 expired rewards unchanged",
+      "hold cross-month awards for the six legacy-balance accounts",
+      "no unapproved billing or plan change"
+    ]
+  },
+  "executionState": {
+    "productionWritesPerformed": 0,
+    "mainBranchesUpdated": false,
+    "writersPaused": false,
+    "preflight": "waiting_for_owner_google_login_to_firebase_cli",
+    "renderAccess": "verified",
+    "gitBranchesFastForwardEligible": true,
+    "firebaseCliVersion": "15.34.0",
+    "firebaseCliDistributionDigestVerified": true,
+    "authenticationCheck": "No authorized accounts; projects:list failed to authenticate"
   }
 }
