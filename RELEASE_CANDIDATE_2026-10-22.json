@@ -115,7 +115,7 @@
   "executionState": {
     "mainBranchesUpdated": false,
     "writersPaused": false,
-    "preflight": "waiting_for_local_secure_pos_connection_input",
+    "preflight": "POS_backup_restore_passed_waiting_explicit_POS_offsite_destination_approval",
     "renderAccess": "verified",
     "gitBranchesFastForwardEligible": true,
     "firebaseCliVersion": "15.34.0",
@@ -169,7 +169,7 @@
     "frozen": false
   },
   "remainingExternalInputs": [
-    "Production POS database connection supplied through local hidden input, encrypted with Windows account protection and restricted local ACL; no password in chat. Needed for backup and additive schema operations because Render connector has no command execution."
+    "Explicit authorization to store encrypted POS backup containing sales/employee data in the existing private Google Drive backup folder and its decryption key separately; prior destination approval was for Member data. Auto-review rejected the attempted POS upload; no alternate upload was attempted."
   ],
   "posBindingObservation": {
     "source": "Owner-run read-only Render Shell command; screenshot 20261022-064752",
@@ -201,5 +201,34 @@
       "openid",
       "profile"
     ]
-  }
+  },
+  "posBackup": {
+    "runId": "9ff73990-6521-41fb-81ec-12a5c14edd44",
+    "capturedAt": "2026-10-22T07:25:09.256887+00:00",
+    "database": "postgres",
+    "serverMajor": 17,
+    "tables": 27,
+    "bills": 2075,
+    "snapshotConsistent": true,
+    "format": "PostgreSQL custom archive encrypted AES-256-GCM",
+    "dumpBytes": 582093,
+    "dumpSha256": "cc2353b6f54e604ae0fbee2d2fae5b5d13df5437a84fba649609a402ba6925d4",
+    "encryptedBytes": 776221,
+    "encryptedSha256": "988e1f4441dc544dcfce19a78163720daa9fe0fe389c988bb364c4ce6673ec0c",
+    "restoreVerified": true,
+    "restoreVerifiedAt": "2026-10-22T07:26:26.069438+00:00",
+    "restoreTarget": "isolated_local_postgresql",
+    "all27TableHashesMatched": true,
+    "localRestoreServerStopped": true,
+    "productionWrites": 0,
+    "offsiteUploaded": false,
+    "offsiteUploadStatus": "automatic_approval_review_rejected_destination_authorization_not_explicit_for_POS_data",
+    "separateKeyOffsiteUploaded": false
+  },
+  "remainingCutoverGates": [
+    "POS offsite backup and independent readback verification",
+    "Verify Rules compatibility with actual printJobs consumers before changing production Rules",
+    "Freeze only legacy Member writers, fresh frozen Member backup/restore, reviewed additive migration and coordinated deployment",
+    "Read-only canary and activation checks"
+  ]
 }
