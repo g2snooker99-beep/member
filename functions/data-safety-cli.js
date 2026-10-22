@@ -4,9 +4,14 @@ const fs=require("node:fs/promises"),path=require("node:path");
 const safety=require("./data-safety");
 async function main(args=process.argv.slice(2),env=process.env){
   const [command,input,output,namespace]=args;
-  if(!["export","inspect","restore-dry-run","restore-test","migration-plan","apply-reviewed-plan"].includes(command))throw Error("Use export <encrypted-output>, inspect <backup>, restore-dry-run|restore-test <backup> <test-project> <namespace>, migration-plan <backup> <private-plan-output>");
-  if(!/^[a-f0-9]{64}$/i.test(env.G2_BACKUP_KEY_HEX||""))throw Error("Separate backup encryption key required in G2_BACKUP_KEY_HEX");
-  const key=Buffer.from(env.G2_BACKUP_KEY_HEX,"hex");
+  if(!["export","inspect","review-checkpoint","restore-dry-run","restore-test","migration-plan","apply-reviewed-plan"].includes(command))throw Error("Use export <encrypted-output>, inspect <backup>, review-checkpoint <backup>, restore-dry-run|restore-test <backup> <test-project> <namespace>, migration-plan <backup> <private-plan-output>");
+  if(env.G2_BACKUP_KEY_HEX&&env.G2_BACKUP_KEY_FILE)throw Error("Choose one private backup key source");
+  let key;
+  if(env.G2_BACKUP_KEY_FILE){key=await fs.readFile(env.G2_BACKUP_KEY_FILE);if(key.length!==32)throw Error("Separate 32-byte key file required");}
+  else{if(!/^[a-f0-9]{64}$/i.test(env.G2_BACKUP_KEY_HEX||""))throw Error("Separate backup encryption key required");key=Buffer.from(env.G2_BACKUP_KEY_HEX,"hex");}
+  if(command==="review-checkpoint"){
+    return require("./review-migration-backup").reviewMigrationBackup({backup:safety.unseal(await fs.readFile(input,"utf8"),key),monthId:env.G2_MIGRATION_BALANCE_MONTH,ownerUid:env.MEMBER_OWNER_LINE_UID,approvedStaff:(env.G2_APPROVED_STAFF_UIDS||"").split(",").filter(Boolean)});
+  }
   if(command==="inspect"){
     const b=safety.unseal(await fs.readFile(input,"utf8"),key);
     return {sourceProject:b.sourceProject,count:b.count,counts:b.counts,recordsSha256:b.recordsSha256,capturedAt:b.capturedAt};

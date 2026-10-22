@@ -17,6 +17,7 @@ async function applyReviewedPlan({db,plan,approvedPlanSha256,backupManifestSha25
    const [old,r]=await Promise.all([tx.get(ref),tx.get(receipt)]);
    if(r.exists)return "duplicate";
    if(!old.exists||digest(old.data())!==item.beforeSha256)throw Error("Source changed since backup; regenerate plan");
+   if(["users","monthlyRewards"].includes(collection)&&(old.data().isTest===true||old.data().dummyOnly||old.data().testRun||old.data().testRunId))throw Error("Trial records must remain unchanged");
    if(collection==="users")for(const key of Object.keys(item.patch))if(old.data()[key]!==undefined&&old.data()[key]!==null&&old.data()[key]!=="")throw Error("Existing member field overwrite refused");
    tx.update(ref,item.patch);tx.create(receipt,{path:item.path,planSha256:plan.planSha256,beforeSha256:item.beforeSha256,appliedAt:FieldValue.serverTimestamp()});return "applied";
   });

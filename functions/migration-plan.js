@@ -19,7 +19,7 @@ function planMigration({members,monthId,ownerUid,approvedStaff=[]}){
     if(!p.nickname&&typeof p.displayName==="string")patch.nickname=p.displayName.slice(0,60);
     if(p.lifetimeHours===undefined)patch.lifetimeHours=0;
     // Never reset or import a balance, copy a trial, or replace an existing ID.
-    if(p.testRun||p.testRunId||p.dummyOnly){problems.push({id,reason:"trial_data_must_not_promote"});continue;}
+    if(p.testRun||p.testRunId||p.dummyOnly||p.isTest===true){problems.push({id,reason:"trial_data_must_not_promote"});continue;}
     if(Object.keys(patch).length)updates.push({path:"users/"+id,beforeSha256:hash(p),patch});
     if(id===ownerUid){if(p.role!=="admin"||p.isActive===false)problems.push({id,reason:"owner_profile_requires_separate_approval"});else authority.push({userId:id,role:"admin",enabled:true});}
     else if(approvedStaff.includes(id)){if(p.role!=="staff"||p.isActive===false)problems.push({id,reason:"staff_profile_requires_separate_approval"});else authority.push({userId:id,role:"staff",enabled:true});}
@@ -36,6 +36,7 @@ function planMigration({members,monthId,ownerUid,approvedStaff=[]}){
 function planRewardMigration(rewards){
   const problems=[],updates=[],seen=new Map();
   for(const {id,data:p} of rewards){
+    if(p.isTest===true||p.dummyOnly||p.testRun||p.testRunId){problems.push({id,reason:"trial_reward_must_remain_unchanged"});continue;}
     const type=p.type||({ranking_shirt:[1,2,3].includes(p.rank)?"top"+p.rank:null,discount_10:"discount10"}[p.rewardType]);
     if(!["top1","top2","top3","discount10"].includes(type)||!/^U[0-9a-f]{32}$/i.test(p.userId||"")||!/^\d{4}-(0[1-9]|1[0-2])$/.test(p.monthKey||"")){
       problems.push({id,reason:"legacy_reward_requires_manual_mapping"});continue;

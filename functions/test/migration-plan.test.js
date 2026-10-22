@@ -39,3 +39,27 @@ test("migration application fails closed without approval, backup and a matching
  assert.notEqual(planDigest(changed),plan.planSha256);
  await assert.rejects(applyReviewedPlan({db:{projectId:"member-3e17e"},plan:changed,approvedPlanSha256:plan.planSha256,backupManifestSha256:"backup",writersPaused:true,productionApproval:true}));
 });
+
+test("trial member and reward markers never become migration updates",()=>{
+ const {planRewardMigration}=require("../migration-plan");
+ const members=[{id:A,data:{role:"admin",monthlyPoints:0,isTest:true}}];
+ assert.equal(planMigration({members,monthId:"2026-10",ownerUid:A}).ready,false);
+ for(const marker of [{isTest:true},{dummyOnly:true},{testRunId:"trial"},{testRun:"trial"}]){
+  for(const status of ["active","used"]){
+   const source=[{id:"trial",data:{userId:U,monthKey:"2026-07",rewardType:"discount_10",status,...marker}}];
+   const before=JSON.stringify(source),plan=planRewardMigration(source);
+   assert.equal(plan.ready,false);assert.equal(plan.updates.length,0);
+   assert.equal(plan.problems[0].reason,"trial_reward_must_remain_unchanged");assert.equal(JSON.stringify(source),before);
+  }
+ }
+});
+test("approved custom plans still cannot activate a stored trial reward",async()=>{
+ const {applyReviewedPlan,planDigest}=require("../apply-reviewed-migration"),{encode}=require("../data-safety"),{createHash}=require("node:crypto");
+ const source={userId:U,monthKey:"2026-07",rewardType:"discount_10",status:"active",isTest:true};
+ const beforeSha256=createHash("sha256").update(JSON.stringify(encode(source))).digest("hex");
+ const plan={ready:true,updates:[],authority:[],projections:[],rewards:{updates:[{path:"monthlyRewards/trial",beforeSha256,patch:{type:"discount10",status:"available"}}]},sourceBackupSha256:"backup"};
+ plan.planSha256=planDigest(plan);let writes=0;
+ const db={projectId:"g2-member-test",testMigrationNamespace:true,doc:p=>({path:p}),collection:c=>({doc:id=>({collection:x=>({doc:id=>({path:"receipt"})})})}),runTransaction:async fn=>fn({get:async ref=>({exists:ref.path!=="receipt",data:()=>source}),update:()=>writes++,create:()=>writes++})};
+ await assert.rejects(applyReviewedPlan({db,plan,approvedPlanSha256:plan.planSha256,backupManifestSha256:"backup",writersPaused:true}),/Trial records/);
+ assert.equal(writes,0);assert.equal(source.status,"active");
+});

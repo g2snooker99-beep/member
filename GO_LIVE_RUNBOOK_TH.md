@@ -87,6 +87,14 @@ node data-safety-cli.js migration-plan <production-backup-file> <private-plan-fi
 - ชุด deploy ที่ระบุ commit แน่นอนและการเปิด production mutation/award gates
 
 
-## รอบสำรอง checkpoint ที่ต้องขออนุมัติเพิ่ม
+## สถานะ checkpoint และการตรวจสำเนาจริงล่าสุด
 
-ดู FOLLOWUP_PRODUCTION_PREP_TH.md: วิธีสำรองอ่านอย่างเดียวและ private restore เตรียมแล้ว แต่ automatic approval review ปฏิเสธการตั้ง encryption key/transfer token บน Render จนกว่าผู้ใช้จะอนุมัติปลายทาง/การเก็บกุญแจอย่างชัดเจน ไม่มีการเริ่มสำรองจริงหรืออ้อมข้อจำกัดนี้ การอนุมัติ checkpoint ไม่ใช่การอนุมัติ production migration หรือ deploy
+ผู้ใช้อนุมัติรอบสำรองแล้ว สำรองและกู้คืนสำเร็จครบ 962 เอกสาร ดู [หลักฐานสำรอง/กู้คืน](REAL_BACKUP_RESTORE_2026-10-21_TH.md) ค่าลับบน Render ถูกล้างและตรวจ endpoint เป็น 404 แล้ว การอนุมัตินี้ไม่รวม Production/main
+
+ผลตรวจแผนกับสำเนาจริงวันที่ 22 ตุลาคมพบสิทธิ์เก่าซ้ำ 3 กลุ่ม (4 รายการเกิน) และสิทธิ์ทดลอง 3 รายการ (ใช้แล้ว 2) แผนย้ายยังถูกปิดกั้น รายละเอียดใน [รายงานตรวจแผน](MIGRATION_CHECKPOINT_REVIEW_2026-10-22_TH.md) ไม่แก้หรือลบข้อมูลเดิม และไม่คืนสิทธิ์ used
+
+ตรวจออฟไลน์ด้วยไฟล์กุญแจ binary 32 ไบต์ผ่าน G2_BACKUP_KEY_FILE แทนการพิมพ์กุญแจใน command line; กำหนดเดือนยอดเดิมและ owner UID ที่ทราบแล้วใน environment ส่วนตัว:
+```text
+node data-safety-cli.js review-checkpoint <encrypted-backup-file>
+```
+เครื่องมือนี้ไม่เชื่อม Firebase ไม่แสดงข้อมูลระบุตัวสมาชิก ไม่สร้างแผน executable และไม่อนุมัติ cutover แม้ mapping ผ่าน ต้องใช้ fresh frozen backup และ review แผนจริงตามลำดับข้างต้น

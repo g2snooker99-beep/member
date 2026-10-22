@@ -21,33 +21,13 @@
 - Preflight receipt: f3e65ac2-308b-4a52-846d-fc3df3c4a751 (passed), productionWrites=0
 - Winzy.A ยัง 1 แต้มหลัง Member test backend restart; คิวมี 2 delivered ไม่มี pending
 
-## Backup ที่เตรียมพร้อม แต่ยังไม่ได้เปิดทำสำเนาจริง
+## สำรองจริงและตรวจแผนล่าสุด
 
-เตรียม checkpoint อ่านอย่างเดียวจาก member-3e17e, เข้ารหัส AES-256-GCM,
-คงชนิดข้อมูล Firestore และ manifest/checksum พร้อมช่องทางรับไฟล์ที่ต้องมี
-โทเค็นเฉพาะหนึ่งรอบและ private restore ที่สร้างได้เฉพาะ namespace ว่างใน g2-member-test
-โดยไม่เขียนทับข้อมูลหรือ ACL ระดับรากของโครงการ
+รอบสำรองที่ผู้ใช้อนุมัติผ่านแล้ว: 962 เอกสาร สมาชิก 76 คน คะแนนรวม 241 แต้ม ประวัติ 737 รายการ ทดสอบกู้คืนและแฮชตรงกัน ล้างค่าลับและปิด endpoint แล้ว ดู REAL_BACKUP_RESTORE_2026-10-21_TH.md
 
-การค้นโครงสร้างเกิดก่อน read-only data transaction และไม่สำรอง printJobs
-จึงเป็น checkpoint เพื่อทดสอบกู้คืน ไม่ใช่ final release backup ในช่วง maintenance
-เครื่องมือ migration ปฏิเสธ checkpoint นี้เป็นหลักฐานอนุมัติย้ายจริง ต้องใช้
-fresh backup ที่หยุดผู้เขียนข้อมูลแล้วแยกต่างหาก
+ผลตรวจสำเนาจริงวันที่ 22 ตุลาคมพบสิทธิ์เก่าซ้ำ 3 กลุ่ม (4 รายการเกิน) และสิทธิ์ทดลอง 3 รายการ (ใช้แล้ว 2) จึงยังไม่ให้แผนย้ายผ่าน โค้ดใหม่ปฏิเสธการเปิดใช้สิทธิ์ทดลองทั้งขั้นสร้างแผนและขั้น transaction ดู MIGRATION_CHECKPOINT_REVIEW_2026-10-22_TH.md
 
-**ยังไม่มีสำเนาข้อมูลจริงถูกสร้างในรอบนี้**: การตั้งค่ากุญแจและโทเค็นบน Render
-ถูก automatic approval review ปฏิเสธ เพราะผู้ใช้ยังไม่ได้อนุมัติให้ Render
-เป็นที่เก็บกุญแจ/ปลายทางข้อมูลสำรองโดยชัดเจน ไม่ได้ลองอ้อมข้อจำกัดนี้
-ตัว backup/restore bridge ยังคงปิดด้วยค่าเริ่มต้น
-
-## ขอบเขตที่จะขออนุมัติเฉพาะรอบสำรอง
-
-1. ใช้ Render Staging และ Member test API เก็บ encryption key/transfer token
-   ชั่วคราวระหว่างทำสำเนาและกู้คืนทดสอบ โดยไม่เปิดสิทธิ์เพิ่มบน production
-2. อ่านข้อมูลสมาชิก/คะแนน/ประวัติ/รางวัลและข้อมูล Member ที่เกี่ยวข้องด้วย
-   credential อ่านอย่างเดียวเดิม เก็บเฉพาะไฟล์เข้ารหัสไว้ในพื้นที่ส่วนตัวของผู้ใช้
-3. เก็บ recovery key เป็นอีกไฟล์ส่วนตัวแยกจาก archive ไม่โพสต์ key ในแชตหรือ GitHub
-4. ทดสอบ restore ลง namespace แยกใน Firebase ทดสอบและเทียบ hash/จำนวนเอกสาร
-5. เอาค่า key/token ออกจาก Render settings ที่ใช้งานเมื่อเสร็จ
-6. ไม่รวมอนุมัติ deploy Production/main, เปลี่ยน Rules จริง, แจกแต้มจริง หรือย้ายข้อมูลจริง
+การบันทึกไฟล์สำรอง/กุญแจถาวรผ่านช่องทาง Library รอบก่อนยังไม่สำเร็จ ไฟล์สองไฟล์ยังอยู่แยกกันในโฟลเดอร์งานส่วนตัว ต้องเก็บให้เรียบร้อยก่อน cutover
 
 ## ยังถือข้อห้ามเดิมครบ
 
@@ -63,4 +43,4 @@ Production/main ไม่ถูก deploy; member-3e17e ไม่มีการ
 - PostgreSQL integration ผ่าน 41 tests และ Firestore+PostgreSQL ผ่านอีก 6 tests — https://github.com/g2snooker99-beep/g2snooker/actions/runs/39609227352
 - Runtime entry/code prepared on feature branches; production service updatedAt ยังคง 16 ตุลาคม 2026
 - อ่าน Winzy.A หลัง Member test API restart พบ 1 แต้ม; คิว Staging 2 delivered ไม่มี pending
-- การสำรองจริงยังไม่เริ่มและยังไม่มีไฟล์ข้อมูลจริงถูกสร้างหรืออัปโหลดในรอบนี้
+- รายการทดสอบข้างต้นเป็น baseline ก่อนรอบสำรองจริงที่ผ่านแล้ว ดูรายงานวันที่ 21 และ 22 ตุลาคมสำหรับสถานะปัจจุบัน
