@@ -28,7 +28,13 @@
 - รวมกรณีสิทธิ์ทดลอง active/used ทุก marker, แผนที่จัดทำเองห้ามเปิดสิทธิ์ทดลอง, source ไม่ถูกเปลี่ยน, รายงานไม่เผยข้อมูลส่วนบุคคล, manifest ปลอมถูกปฏิเสธ และ CLI ไม่ต้องมี cloud credential
 - รายงานจากสำเนาจริง: mappingReady=false, readyForCutover=false, firestoreWrites=0
 - ยังไม่ผ่านการย้ายจริง และไม่ได้อ้างว่าเป็นการทดสอบหน้าพนักงาน/แอดมินผ่าน LINE เจ้าของร้าน
-- ผล CI และ deployment Staging จะบันทึกหลังตรวจรอบนี้
+- [CI Node 22 + Firestore/Auth emulator](https://github.com/g2snooker99-beep/member/actions/runs/39705217924): **45/45 ผ่าน ไม่มี skipped**
+- โค้ดที่ทดสอบและ deploy: `439190de8c04f8575a07ca6482403a998b3dfe1a`
+- Render Member Staging deploy `dep-dbcmbess728c73fha1og` live เวลา 2026-10-22T01:25:24.552027Z (08:25:24 น. กรุงเทพฯ)
+- GET / และ GET /health ตอบ 200; backendReady=true, posBackendReady=true, awardsEnabled=false
+- ช่องทาง private restore ตอบ 404; ไม่พบ error ใน application logs หลัง deploy ณ เวลาตรวจ
+- ตรวจ Render Production ยังคง main และ updatedAt 2026-10-16T16:37:08.676732Z ไม่ได้ deploy หรือเปลี่ยน production config
+- ลองบันทึก archive/กุญแจด้วยช่องทางปัจจุบันอีกครั้ง ยังทำไม่ได้เพราะบริการ prepare_uploads ไม่พร้อมใช้งาน ไฟล์เดิมสองไฟล์ยังอยู่ครบ ไม่มีการนำไปเก็บใน GitHub
 
 ## สิ่งที่ต้องตรวจให้ชัดก่อน Production
 
@@ -39,3 +45,11 @@
 5. อนุมัติชุด deploy, Rules/IAM/legacy writer และ activation Production แยกต่างหาก
 
 ไม่มี production writes, deploy main, การแจกแต้มทดลอง หรือการรีเซ็ตคะแนนสมาชิกจริงในรอบนี้
+
+## ข้อเสนอการจัดการสิทธิ์เก่าที่รอเจ้าของยืนยัน
+
+เก็บสิทธิ์เดือนกรกฎาคม–สิงหาคมทั้ง 20 รายการไว้เป็นประวัติตามต้นฉบับ ไม่ลบ เปลี่ยนรหัส แปลงเป็น available หรือคืนสิทธิ์ used รายการทดลอง 3 รายการต้องไม่สามารถใช้ในระบบจริง และรายการซ้ำต้องไม่สร้างสิทธิ์ใหม่เพิ่ม
+
+ตามกติกาใช้สิทธิ์เดือนถัดไป สิทธิ์ของกรกฎาคมใช้ในสิงหาคม และสิทธิ์ของสิงหาคมใช้ในกันยายน จึงไม่ควรเปิดย้อนหลังในเดือนตุลาคม ข้อนี้เป็นข้อเสนอสำหรับแผนย้ายจริงเท่านั้น ยังไม่มีการเปลี่ยนข้อมูลใด และค่าเริ่มต้นของเครื่องมือยังบล็อกแผนที่มีปัญหาอยู่
+
+ขั้นทดสอบด้วยคนที่เหลือ: เปิด https://g2-member-test-api.onrender.com/ และล็อกอิน LINE ด้วยบัญชีเจ้าของร้าน A เพื่อยืนยัน UID จาก LINE จริง ก่อนรับรองเมนูแอดมิน/รายชื่อ staff การล็อกอินเพียงอย่างเดียวไม่อนุญาต production migration หรือ deploy
