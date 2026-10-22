@@ -169,7 +169,21 @@
     "frozen": false
   },
   "remainingExternalInputs": [
-    "Actual production POS database name/timezone and read-only connectivity proof from Render Shell; connector has no command execution capability and browser surfaces are unavailable",
-    "Dedicated production POS LIFF, different from test LIFFs and signup LIFF, with endpoint https://g2snooker.onrender.com/api/member/join-page"
-  ]
+    "Dedicated production POS LIFF on channel 2010084269, separate from signup and both test LIFFs, endpoint https://g2snooker.onrender.com/api/member/join-page",
+    "Production POS operator access remains necessary for additive schema preparation and backup verification; Render connector cannot execute Shell commands"
+  ],
+  "posBindingObservation": {
+    "source": "Owner-run read-only Render Shell command; screenshot 20261022-064752",
+    "service": "srv-d76kd0nfte5s73em4r00",
+    "database": "postgres",
+    "databaseTimezone": "UTC",
+    "sandboxRehearsalTableExists": false,
+    "bills": 2075,
+    "runtimeTimezoneEnvironment": null,
+    "productionPosLiffEnvironment": null,
+    "mainCommit": "a592ed96d476688a725f3830ab516e141ae93cec",
+    "writes": 0,
+    "livePosTimezoneCandidate": "UTC",
+    "timezoneEvidence": "Pinned current app stores datetime.now() values and separately adds seven hours for Thai display; process local timezone still needs final clock confirmation."
+  }
 }
