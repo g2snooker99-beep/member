@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-22T16:06:30.234Z",
+  "updatedAt": "2026-10-22T16:09:14.252Z",
   "state": "production_active_owner_line_acceptance_pending",
   "productionRolloutApproved": true,
   "activationCompleted": true,
@@ -9,7 +9,8 @@
     "posTested": "c327b3050dea0e3c84ff49a1f77395c09389290f",
     "posMain": "c327b3050dea0e3c84ff49a1f77395c09389290f",
     "memberPreviousMain": "2a99878e68e80b82eefa3f11ab9f82fa28725e01",
-    "memberCodeCheckpoint": "6ba79fb628c725c8812f416bd0cb51ce714b1e2e"
+    "memberCodeCheckpoint": "6ba79fb628c725c8812f416bd0cb51ce714b1e2e",
+    "memberConfigurationCommit": "477cca14bbcb97cd5874e0009271b287901d9aec"
   },
   "production": {
     "maintenance": false,
@@ -149,7 +150,14 @@
       "projectId": "member-3e17e"
     },
     "realProductionLineUserLoginObserved": false,
-    "productionSuccessfulAwardOrRedemptionSimulated": false
+    "productionSuccessfulAwardOrRedemptionSimulated": false,
+    "validShapeAnonymousRequestsDenied": [
+      "memberAddPoints",
+      "memberSetStaff",
+      "memberRedeemReward"
+    ],
+    "validShapeAnonymousRequestsStatus": "UNAUTHENTICATED",
+    "validShapeAnonymousRequestsWrites": 0
   },
   "infrastructureCanary": {
     "verifiedAt": "2026-10-22T08:45:53.022Z",
@@ -161,11 +169,12 @@
     "originalMemberLiffEndpoint": "https://member-3e17e.web.app/index.html"
   },
   "ci": {
-    "member": "https://github.com/g2snooker99-beep/member/actions/runs/39748378512",
+    "member": "https://github.com/g2snooker99-beep/member/actions/runs/39811168179",
     "memberConclusion": "success",
     "pos": "https://github.com/g2snooker99-beep/g2snooker/actions/runs/39618196222",
     "posConclusion": "success",
-    "backupRegressionTestsPassed": 4
+    "backupRegressionTestsPassed": 4,
+    "memberCommit": "477cca14bbcb97cd5874e0009271b287901d9aec"
   },
   "limitations": [
     "Six old-month balances totaling 134 points remain preserved and held for cross-month awards under the approved policy.",

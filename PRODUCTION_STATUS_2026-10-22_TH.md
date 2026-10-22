@@ -8,11 +8,11 @@
 
 - Deploy secure backend, frontend และ Rules จริง; indexes จำเป็นทั้ง 3 ชุด READY ระบบ signing ของ runtime และ IAMCredentials API พร้อม
 - หน้า Member และ POS ตอบ 200; protected health ปฏิเสธผู้ไม่ล็อกอินด้วย 403
-- Mutation endpoints จริง 6 ตัวผ่านสวิตช์ hold แล้วและปฏิเสธ empty/unauthenticated requests ตามการตรวจข้อมูลและสิทธิ์ ไม่มีการทดสอบแจกแต้มจริง
+- Mutation endpoints จริง 6 ตัวผ่านสวิตช์ hold แล้วและปฏิเสธ empty/unauthenticated requests ตามการตรวจข้อมูลและสิทธิ์ เพิ่ม negative test คำขอรูปแบบถูกต้องแบบไม่ล็อกอินสำหรับเพิ่มแต้ม/ตั้งสิทธิ์พนักงาน/แลกรางวัล ได้ UNAUTHENTICATED ทั้ง 3 ตัว ไม่มีการทดสอบแจกแต้มจริง
 - เปิดรอบ 2026-10 เวลา 15:47 น. โดยไม่รีเซ็ตคะแนนเดิม
 - สร้างตารางคิวและ immutable release manifest แบบ additive; ไม่ส่งบิลเก่าเข้าคิว
 - หลัง Render รีสตาร์ต worker บันทึก started เวลา 23:03:21 น. สำหรับ member-3e17e รอบทำงาน 20 วินาที
-- CI Member รวมการแก้ backup ผ่าน: https://github.com/g2snooker99-beep/member/actions/runs/39748378512
+- CI Member รวมการแก้ backup ผ่าน: https://github.com/g2snooker99-beep/member/actions/runs/39811168179
 - CI POS ผ่าน: https://github.com/g2snooker99-beep/g2snooker/actions/runs/39618196222
 
 ## ข้อมูลเดิมและสำรอง
