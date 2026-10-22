@@ -117,11 +117,28 @@
     "productionWritesPerformed": 0,
     "mainBranchesUpdated": false,
     "writersPaused": false,
-    "preflight": "waiting_for_owner_google_login_to_firebase_cli",
+    "preflight": "blocked_billing_disabled",
     "renderAccess": "verified",
     "gitBranchesFastForwardEligible": true,
     "firebaseCliVersion": "15.34.0",
     "firebaseCliDistributionDigestVerified": true,
-    "authenticationCheck": "No authorized accounts; projects:list failed to authenticate"
+    "authenticationCheck": "Firebase CLI login and project access verified; signed-in account is project Owner",
+    "billingEnabled": false,
+    "schedulerCheck": {
+      "status": 403,
+      "reason": "BILLING_DISABLED"
+    },
+    "productionFunctionsInventoried": 22,
+    "firestoreEdition": "STANDARD",
+    "firestoreLocation": "nam5",
+    "dedicatedRuntimeIdentityExists": false,
+    "dedicatedPosWriterIdentityExists": false,
+    "productionBillingOrPlanChanged": false
+  },
+  "billingDecisionRequired": {
+    "reason": "The prepared production Cloud Functions deployment requires Blaze; current billing is disabled.",
+    "deploymentApprovalStillValid": true,
+    "billingUpgradeAuthorized": false,
+    "nextStep": "Owner must authorize and link an appropriate Cloud Billing account before coordinated cutover."
   }
 }
