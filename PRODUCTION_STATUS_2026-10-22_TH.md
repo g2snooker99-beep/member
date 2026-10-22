@@ -1,36 +1,46 @@
-# สถานะเปิดใช้งาน G2 Member — 22 ตุลาคม 2026
+# G2 Member เปิด production — 22 ตุลาคม 2026
 
-สถานะล่าสุดอยู่ใน `PRODUCTION_STATUS_2026-10-22.json` รายงาน release candidate ก่อนหน้านี้เป็น checkpoint ในอดีต ไม่ใช่หลักฐานว่าเปิด production แล้ว
+สถานะนี้แทนที่ checkpoint และรายงาน hold ก่อนหน้า รายละเอียดเครื่องอ่านได้อยู่ใน `PRODUCTION_STATUS_2026-10-22.json`
 
-## สิ่งที่ทำจริง
+ระบบสมาชิกจริงและ POS เปิดแล้ว ตามการอนุมัติของเจ้าของ โดย POS deploy `dep-dbd371dg1s2s73f0uhrg` ขึ้น live เวลา 23:03 น. ประเทศไทย และ public config ตรวจได้ว่า enrollment/awards เป็น true ระบบใช้ Member project `member-3e17e` และ POS commit `c327b3050dea0e3c84ff49a1f77395c09389290f`
 
-- ผู้ใช้อนุมัติ production rollout แล้ว ระบบสมาชิกอยู่หน้า maintenance; POS ยังใช้ main เดิม
-- Deploy secure backend 10 functions โดยปิด mutation gates และ deploy Rules ปฏิเสธ client writes แล้ว
-- ปิด invoker ของ legacy writers 13 ตัวและพัก scheduler 3 ตัว
-- เพิ่มเฉพาะ pointsMonth ของสมาชิกยอดศูนย์ 32 คน, ACL เจ้าของ A และ public projections 36 รายการ คะแนนและประวัติไม่ได้รีเซ็ต
-- สำรอง POS 27 ตาราง/2,075 บิล กู้คืน PostgreSQL จริงผ่าน เก็บสำรองเข้ารหัสนอกเครื่องพร้อมกุญแจแยกและอ่านกลับตรวจ decrypt ผ่านแล้ว
+## ผลที่ทำและตรวจแล้ว
 
-## ข้อผิดพลาดของ operator และการแก้ไข
+- Deploy secure backend, frontend และ Rules จริง; indexes จำเป็นทั้ง 3 ชุด READY ระบบ signing ของ runtime และ IAMCredentials API พร้อม
+- หน้า Member และ POS ตอบ 200; protected health ปฏิเสธผู้ไม่ล็อกอินด้วย 403
+- Mutation endpoints จริง 6 ตัวผ่านสวิตช์ hold แล้วและปฏิเสธ empty/unauthenticated requests ตามการตรวจข้อมูลและสิทธิ์ ไม่มีการทดสอบแจกแต้มจริง
+- เปิดรอบ 2026-10 เวลา 15:47 น. โดยไม่รีเซ็ตคะแนนเดิม
+- สร้างตารางคิวและ immutable release manifest แบบ additive; ไม่ส่งบิลเก่าเข้าคิว
+- หลัง Render รีสตาร์ต worker บันทึก started เวลา 23:03:21 น. สำหรับ member-3e17e รอบทำงาน 20 วินาที
+- CI Member รวมการแก้ backup ผ่าน: https://github.com/g2snooker99-beep/member/actions/runs/39748378512
+- CI POS ผ่าน: https://github.com/g2snooker99-beep/g2snooker/actions/runs/39618196222
 
-Adapter เร่งการอ่านสำรองที่เพิ่มระหว่าง cutover ไม่ส่งต่อ collection.id ทำให้เส้นทางลูกอันดับย้อนหลัง 91 รายการกลายเป็น undefined การเทียบ backup กับ restore อย่างเดียวจึงให้ผลตรงกันทั้งที่เส้นทางไม่ตรง source จริง การ apply แผนเพิ่ม metadata สำเร็จแล้ว แต่ post-verify หยุดเมื่อค้นเส้นทางที่ผิดไม่พบ ไม่ได้ลบข้อมูลต้นทาง
+## ข้อมูลเดิมและสำรอง
 
-แก้ adapter ให้รักษา ID และจับคู่ 91 รายการกับเส้นทางจริงโดย typed-data equality ที่ตรงเพียงแห่งเดียว ตรวจ original documents จริงครบ 962 รายการตรงกับข้อมูลเดิมและ metadata 32 รายการที่อนุมัติแล้ว สร้างสำรอง corrected ชุดใหม่ กู้คืนใน test namespace ใหม่จริงครบ 962 รายการ hash ตรงกัน เพิ่ม regression tests 4 รายการ ครอบคลุม nested collection, missing ancestor, reversed getAll ordering, restore prefix และกรณีข้อมูล traversal ไม่ครบ ชุดเก่าคงไว้เพื่อตรวจสอบและทำเครื่องหมายไม่ผ่าน path fidelity ห้ามใช้อ้างอิงเปิดระบบ
+ตรวจ frozen source จริงครบ 962 เอกสารก่อนเปิดเวลา 15:37 น.: สมาชิก 76 คน รวม 241 แต้ม ประวัติ 737 รายการ รางวัลเก่า 20 รายการ คงเดิม ยอด live หลังเปิดอาจเปลี่ยนตามธุรกรรมจริง
 
-แผน corrected มีการเปลี่ยนแปลงรายการเดิมทุกประการ แต่ผูก hash สำรองที่ถูกต้อง ยังไม่ apply provenance correction; จะเพิ่มหลักฐานอ้างอิงของรายการที่เสร็จแล้วแบบ append-only หลังตรวจ receipt และข้อมูลปัจจุบันซ้ำ โดยไม่เขียน metadata หรือคะแนนซ้ำและไม่ลบ receipt เดิม
+เพิ่มเฉพาะ month metadata ของยอดศูนย์ 32 คน, ACL เจ้าของ A และ public projections 36 รายการ ไม่มีการ reset คะแนนหรือนำคะแนนทดลองมาสู่ production
 
-## ผลตรวจ production แบบอ่านอย่างเดียว
+พบและแก้ข้อผิดพลาด operator backup adapter ที่ละ collection.id ทำให้เส้นทาง nested 91 รายการผิด จับคู่เส้นทางจริงอย่างเป็นเอกลักษณ์ด้วย typed data และตรวจ source ครบทุกเอกสาร สร้าง archive corrected และกู้คืนจริงใน test namespace ใหม่ครบ 962 เอกสาร ตรวจ hash ตรง เพิ่ม regression tests 4 รายการผ่าน ชุดผิดเก็บไว้เป็นประวัติพร้อมถอนสถานะ restoreVerified
 
-- สมาชิก 76 คน รวมคะแนน 241 แต้ม; เก็บประวัติ 737 และรางวัลเก่า 20 รายการ
-- ตรวจ owner A มี staff/admin; บัญชี legacy privilege อีก 6 บัญชีไม่ได้รับสิทธิ์ trusted ACL
-- Preview คืน Top 3 ได้ เดือน 2026-10 ยัง unopened และปิดเดือนปัจจุบันไม่ได้
-- ตรวจ receipt metadata เดิม 32 และ projections เดิม 36 กับข้อมูลจริงผ่าน
-- เรียก mutation endpoints จริง 6 ตัวด้วย empty request ได้ FAILED_PRECONDITION ทั้งหมด ไม่มีการให้แต้ม/แลกรางวัลทดลองใน production
-- ยังไม่ได้สังเกต production LINE browser login จริง และยังไม่ได้ activate
+สำรอง corrected เข้ารหัสเก็บใน Drive ส่วนตัว และกุญแจเก็บแยก อ่านกลับจากทั้งสองที่ ถอดรหัสและตรวจ checksum ผ่านแล้ว
 
-## จุดที่ยังติดและขั้นต่อไป
+แก้ provenance แบบ append-only 68 receipts โดยตรวจเอกสารและ receipts เดิมก่อน ไม่ลบ receipts เดิม ไม่เขียนสมาชิกซ้ำ replay ได้ applied=0/duplicates=32 และรางวัลเก่าคงเดิม 20 รายการ
 
-Automatic approval review ปฏิเสธการอัปโหลดสำรองสมาชิก corrected เพราะตีความอนุมัติล่าสุดเป็น POS-only จึงไม่ลองส่งออกผ่านช่องทางอื่น ต้องให้ผู้ใช้อนุมัติชัดเจนสำหรับสำรองข้อมูลสมาชิกเข้ารหัสไปยังโฟลเดอร์ Drive ส่วนตัวเดิม และเก็บกุญแจแยกก่อนทำ offsite readback/decrypt จากนั้นแก้ provenance, deploy POS พร้อม gates ปิด, prepare additive schema/immutable manifest, frontend/indexes, authenticated canary และเปิด gates ตามอนุมัติ production ที่มีอยู่แล้ว ไม่ต้องขออนุมัติ production ทั่วไปซ้ำ
+POS สำรอง 27 ตาราง/2,075 บิล ณ เวลาสำรอง กู้คืน PostgreSQL จริงทุกตารางพร้อมเทียบ hash ผ่าน เก็บเข้ารหัสนอกเครื่องและกุญแจแยก ตรวจอ่านกลับและ decrypt ผ่านแล้ว
 
-## Rollback
+## เงื่อนไขที่ยังคงไว้
 
-ปิด mutation/enrollment/award gates ก่อน เก็บ queues, receipts, สมาชิกและประวัติทั้งหมด ใช้ secure compatible build หรือ maintenance ห้ามกลับไป public-write Rules หรือเปิด legacy writers อัตโนมัติ ห้าม restore backup ทับ production ที่มีธุรกรรมใหม่
+- 6 บัญชียอดเดือนเก่า รวม 134 แต้ม ยังเก็บเดิมและพักการรับแต้มข้ามเดือนตามนโยบายที่อนุมัติ ไม่ย้ายเดือนหรือล้างคะแนนอัตโนมัติ
+- สิทธิ์ trusted admin เริ่มเฉพาะ A ไม่ให้สิทธิ์จาก legacy role โดยอัตโนมัติ
+- เสื้อ Limited, ส่วนลด 10%, duplicate reward, การปิดเดือน, retry/idempotency และ restart scenarios ผ่าน Staging แล้ว ไม่สร้างธุรกรรมทดลองเหล่านี้ซ้ำใน production
+- ยังไม่ได้สังเกตการล็อกอิน LINE จริงของเจ้าของใน production ขั้นยืนยันหน้าจอ: เปิด https://liff.line.me/2010084269-aui1GaWz ด้วย LINE เดิมของ A และดูบัตร G2-501279 กับเมนูเพิ่มแต้ม/รอบเดือน/สิทธิ์พนักงาน
+- การทดสอบสร้าง runtime service-account key ชั่วคราวถูก automatic review ปฏิเสธ จึงไม่สร้าง key เพิ่ม ใช้การตรวจ infrastructure/IAM/Rules และ existing POS employee health แทน ไม่อ้างว่าได้ผ่าน signed owner Firebase browser canary
+- Scheduled close ตั้งไว้ 00:05 วันที่ 1 ตามเวลาไทย ยังไม่ได้รอให้เกิดเหตุการณ์ในอนาคต A ต้องเปิดรอบเดือนปัจจุบันใหม่ผ่านหน้าแอดมิน
+
+## ย้อนกลับเมื่อมีปัญหา
+
+1. Render production: merge `G2_MEMBER_ENABLED=false` และ `G2_MEMBER_ENROLLMENT_ENABLED=false` รอ deploy แล้วตรวจ public config ห้าม replace env ทั้งชุด
+2. Firebase production: ตั้ง parameter `MEMBER_MUTATIONS_ENABLED=false` และ deploy เฉพาะ secure-member codebase ใช้ maintenance frontend หากจำเป็น
+3. คงคิว, leases, receipts, คะแนน และประวัติทั้งหมดไว้ ตรวจ ledger ก่อน retry รายการเดิม
+4. ห้ามนำ public-write Rules/legacy point writers กลับมา ห้าม restore สำรองทั้งชุดทับธุรกรรมใหม่ กู้คืนทดสอบใน namespace แยกเท่านั้น การซ่อม production ต้องพิจารณาเป็นรายเอกสาร

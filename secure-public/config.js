@@ -1,3 +1,1 @@
-// Explicitly configure a disposable Firebase project and its test LIFF first.
-// Empty defaults fail closed; never silently use the live Member project.
-window.G2_MEMBER_CONFIG={firebase:null,liffId:""};
+window.G2_MEMBER_CONFIG={"firebase":{"apiKey":"AIzaSyACqncCy4JRWZzbKkqLAzcjluQQeF6j2Yg","appId":"1:208783795329:web:0cb511d8ce5cd3e5209980","authDomain":"member-3e17e.firebaseapp.com","databaseURL":"","measurementId":"G-2WY6SMT03N","messagingSenderId":"208783795329","projectId":"member-3e17e","storageBucket":"member-3e17e.firebasestorage.app"},"liffId":"2010084269-aui1GaWz"};
