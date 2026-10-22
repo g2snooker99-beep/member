@@ -3,7 +3,6 @@
   "mode": "production_authorized_preflight",
   "createdOnBangkok": "2026-10-22",
   "productionDeploymentApproved": true,
-  "productionWritesPerformed": 0,
   "approvedPolicies": {
     "approvalSource": "User approved all three stated policies on 2026-10-22",
     "legacyRewards": "preserve_expired_history",
@@ -114,31 +113,63 @@
     ]
   },
   "executionState": {
-    "productionWritesPerformed": 0,
     "mainBranchesUpdated": false,
     "writersPaused": false,
-    "preflight": "blocked_billing_disabled",
+    "preflight": "member_backend_deployed_on_hold_waiting_actual_pos_binding",
     "renderAccess": "verified",
     "gitBranchesFastForwardEligible": true,
     "firebaseCliVersion": "15.34.0",
     "firebaseCliDistributionDigestVerified": true,
-    "authenticationCheck": "Firebase CLI login and project access verified; signed-in account is project Owner",
-    "billingEnabled": false,
+    "authenticationCheck": "Firebase CLI owner login verified; Firestore SDK authenticated read succeeded",
+    "billingEnabled": true,
     "schedulerCheck": {
-      "status": 403,
-      "reason": "BILLING_DISABLED"
+      "status": 200,
+      "legacyJobs": 4
     },
     "productionFunctionsInventoried": 22,
     "firestoreEdition": "STANDARD",
     "firestoreLocation": "nam5",
-    "dedicatedRuntimeIdentityExists": false,
-    "dedicatedPosWriterIdentityExists": false,
-    "productionBillingOrPlanChanged": false
+    "dedicatedRuntimeIdentityExists": true,
+    "dedicatedPosWriterIdentityExists": true,
+    "productionBillingOrPlanChanged": false,
+    "productionDataWritesPerformed": 0,
+    "dedicatedIamProvisioned": true,
+    "privateKeysCreated": 0,
+    "productionInfrastructureChanged": true
   },
-  "billingDecisionRequired": {
-    "reason": "The prepared production Cloud Functions deployment requires Blaze; current billing is disabled.",
-    "deploymentApprovalStillValid": true,
-    "billingUpgradeAuthorized": false,
-    "nextStep": "Owner must authorize and link an appropriate Cloud Billing account before coordinated cutover."
-  }
+  "productionDataWritesPerformed": 0,
+  "backendDeployment": {
+    "codebase": "secure-member",
+    "testedCodeCommit": "c3e71c88fad822cdbc6a5c11a7da370ea4b31396",
+    "cliResult": "success",
+    "functionsActive": 10,
+    "mutationGate": "false",
+    "runtimeServiceAccount": "g2-member-api@member-3e17e.iam.gserviceaccount.com",
+    "hostingDeployed": false,
+    "rulesDeployed": false,
+    "indexesDeployed": false,
+    "additiveMigrationApplied": false,
+    "activationComplete": false,
+    "httpChecks": {
+      "unauthenticatedSession": 401,
+      "unauthenticatedValidMonthPreview": 401,
+      "heldMutationEndpoints": 6,
+      "heldMutationStatus": "FAILED_PRECONDITION"
+    }
+  },
+  "latestReadOnlyInventory": {
+    "dateBangkok": "2026-10-22",
+    "members": 76,
+    "totalPoints": 241,
+    "history": 737,
+    "legacyMonthlyRewards": 20,
+    "heldAccounts": 6,
+    "heldPoints": 134,
+    "memberDataWritesPerformed": 0,
+    "frozen": false
+  },
+  "remainingExternalInputs": [
+    "Actual production POS database name/timezone and read-only connectivity proof from Render Shell; connector has no command execution capability and browser surfaces are unavailable",
+    "Dedicated production POS LIFF, different from test LIFFs and signup LIFF, with endpoint https://g2snooker.onrender.com/api/member/join-page"
+  ]
 }
