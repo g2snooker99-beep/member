@@ -94,6 +94,13 @@ function start(env=process.env){
   const server=http.createServer(createHandler({privateRestore,service,auth,origin:env.G2_MEMBER_API_ORIGIN,publicConfig,posReceiver,posKey:env.G2_TEST_POS_SHARED_KEY||""}));
   server.requestTimeout=15000;server.headersTimeout=10000;server.listen(Number(env.PORT||10000),"0.0.0.0");
   process.on("SIGTERM",()=>{server.close(()=>process.exit(0));setTimeout(()=>process.exit(1),25000).unref();});
+  if(env.G2_TEST_OWNER_UID||env.G2_TEST_OWNER_APPROVAL_RUN_ID){
+    if(!credential)throw Error("Connected test credentials required for owner binding");
+    const admin=require("firebase-admin"),testApp=admin.app("render-test");
+    server.once("listening",()=>require("./approve-test-owner").approveTestOwner({db:testApp.firestore(),auth,FieldValue:admin.firestore.FieldValue,env})
+      .then(async result=>{const session=await service.session(env.G2_TEST_OWNER_UID);console.log("G2_TEST_OWNER_APPROVAL "+JSON.stringify({...result,capabilities:session.capabilities}));})
+      .catch(e=>console.error("G2_TEST_OWNER_APPROVAL "+JSON.stringify({state:"failed",errorCode:String(e.code||e.name||"unknown").slice(0,80)}))));
+  }
   if(env.G2_TEST_BROWSER_MEMBER_UID||env.G2_TEST_BROWSER_APPROVAL_ID){
     if(!credential)throw Error("Connected test credentials required for browser admission");
     const admin=require("firebase-admin"),testApp=admin.app("render-test");
