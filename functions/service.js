@@ -224,6 +224,6 @@ function buildService({db,auth,FieldValue,FieldPath,channelId,ownerUid,verifyLin
       return {updated:true};
     });
   }
-  return {exchange,register,session,addPoints,openMonth,previewMonth,closeMonth,redeem,setStaff,identity};
+  return {exchange,register,session,addPoints,openMonth,previewMonth,closeMonth,redeem,setStaff,identity,clubData:(uid,d)=>require("./club-read").clubData({db,FieldPath,identity,now},uid,d)};
 }
 module.exports={buildService,monthAt};

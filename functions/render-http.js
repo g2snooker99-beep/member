@@ -4,7 +4,7 @@ const http=require("node:http");
 const {readFile}=require("node:fs/promises");
 const path=require("node:path");
 const PROJECT="g2-member-test";
-const routes={memberSession:(s,u)=>s.session(u),memberLineLogin:(s,u,d)=>s.exchange(d.idToken),memberRegister:(s,u,d)=>s.register(u,d),memberAddPoints:(s,u,d)=>s.addPoints(u,d),memberOpenMonth:(s,u,d)=>s.openMonth(u,d.month),memberPreviewMonth:(s,u,d)=>s.previewMonth(u,d.month),memberCloseMonth:(s,u,d)=>s.closeMonth(u,d.month),memberRedeemReward:(s,u,d)=>s.redeem(u,d),memberSetStaff:(s,u,d)=>s.setStaff(u,d)};
+const routes={memberClubData:(s,u,d)=>s.clubData(u,d),memberSession:(s,u)=>s.session(u),memberLineLogin:(s,u,d)=>s.exchange(d.idToken),memberRegister:(s,u,d)=>s.register(u,d),memberAddPoints:(s,u,d)=>s.addPoints(u,d),memberOpenMonth:(s,u,d)=>s.openMonth(u,d.month),memberPreviewMonth:(s,u,d)=>s.previewMonth(u,d.month),memberCloseMonth:(s,u,d)=>s.closeMonth(u,d.month),memberRedeemReward:(s,u,d)=>s.redeem(u,d),memberSetStaff:(s,u,d)=>s.setStaff(u,d)};
 function validateConfig(env){
   if(env.G2_MEMBER_ENABLED!=="false"||env.G2_FIREBASE_PROJECT_ID!==PROJECT||env.FIRESTORE_EMULATOR_HOST||env.FIREBASE_AUTH_EMULATOR_HOST)throw Error("Sandbox isolation required");
   if(!/^https:\/\/[a-z0-9-]+\.onrender\.com$/.test(env.G2_MEMBER_API_ORIGIN||""))throw Error("Canonical Render origin required");
@@ -38,9 +38,9 @@ function createHandler({service,auth,origin,publicConfig=null,clock=Date.now,pos
     if(req.method==="GET"&&url.pathname==="/config.js"){
       res.writeHead(200,{"Content-Type":"application/javascript; charset=utf-8","Cache-Control":"no-store"});return res.end("window.G2_MEMBER_CONFIG="+JSON.stringify(publicConfig||{firebase:null,liffId:""})+";");
     }
-    const files={"/":"index.html","/index.html":"index.html","/app.js":"app.js"};
+    const files={"/":"index.html","/index.html":"index.html","/app.js":"app.js","/member.css":"member.css","/club-banner.svg":"club-banner.svg"};
     if(req.method==="GET"&&files[url.pathname]){
-      try{const body=await readFile(path.join(__dirname,"../secure-public",files[url.pathname]));res.writeHead(200,{"Content-Type":url.pathname.endsWith(".js")?"application/javascript; charset=utf-8":"text/html; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"});return res.end(body);}catch{return send(res,503,{error:"unavailable"});}
+      try{const body=await readFile(path.join(__dirname,"../secure-public",files[url.pathname]));res.writeHead(200,{"Content-Type":url.pathname.endsWith(".js")?"application/javascript; charset=utf-8":url.pathname.endsWith(".css")?"text/css; charset=utf-8":url.pathname.endsWith(".svg")?"image/svg+xml":"text/html; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"});return res.end(body);}catch{return send(res,503,{error:"unavailable"});}
     }
     const name=url.pathname.startsWith("/api/")?url.pathname.slice(5):"";
     if(!Object.hasOwn(routes,name))return send(res,404,{error:"not-found"});

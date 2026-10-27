@@ -105,3 +105,109 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 @media(max-width:360px){.app-shell{padding-left:14px;padding-right:14px}.points-card{padding:20px}.score-line strong{font-size:66px}.surface{padding:18px}.quick-actions{grid-template-columns:1fr}.profile-heading{flex-wrap:wrap}.profile-heading .badge{margin-left:60px}.brand small{font-size:8px}.club-label{display:none}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+
+/* G2 Sport Club, cream + green. Same DOM and authority boundaries. */
+:root{color-scheme:light;--bg:#f5f1e7;--surface:#fffdf7;--border:#ddd3ba;--text:#16382c;--muted:#687367;--gold:#b18a35;--green:#176344;--radius:18px}
+body{background:radial-gradient(ellipse at 100% 0,#e6dcc1,transparent 48%),var(--bg)}
+.app-shell{padding-top:0}
+.brand-header{position:relative;isolation:isolate;min-height:116px;margin:0 -20px 22px;padding:20px;background:#104a33 url("club-banner.svg") right center/cover;border-bottom:3px solid #c6a65d;clip-path:polygon(0 0,100% 0,100% 87%,0 100%);color:#fff8e3}
+.brand-mark{border:0;border-radius:0;width:auto;height:auto;background:transparent;color:#f0d58e;font-size:38px;font-style:italic;letter-spacing:-3px}
+.brand strong{font-size:16px;letter-spacing:1.8px}
+.brand small{font-size:9px;color:#ead7a4}
+.club-label{background:#f9efce1c;border-color:#d7c88d80;color:#fff6d8}
+.status-bar{background:#fffaf0;border-color:#e4dbc7;margin-bottom:22px;padding:6px 10px}
+.status-dot{background:#267950}
+.status-bar p{color:#5a6b5e}
+.text-button{color:#286144;font-size:12px;font-weight:650}
+.profile-heading{gap:15px;margin:10px 0 23px}
+.profile-photo{width:84px;height:84px;border:3px solid #ceb06b;border-radius:50%;padding:3px;background:#fff7e3;flex-shrink:0;box-shadow:0 4px 12px #16372a18;position:relative;overflow:hidden}
+.profile-photo .member-avatar,.profile-photo img{width:100%;height:100%;border-radius:50%;object-fit:cover;background:#dae3d1;color:#28523c;font-size:30px}
+.profile-photo img{position:absolute;inset:3px;width:calc(100% - 6px);height:calc(100% - 6px)}
+.profile-heading h1{font-size:25px}
+.eyebrow{color:#7b713f;letter-spacing:1px}
+.profile-heading .badge{font-size:10px;padding:4px 8px}
+.badge{color:#24653c;border-color:#b6c8a2;background:#edf2df}
+.points-card{background:#0c4b32 url("club-banner.svg") right center/cover;border-color:#ba9c4f;border-radius:19px;box-shadow:0 6px 18px #133f2c18;padding:24px}
+.points-card:after{display:none}
+.points-card-top,.score-line span{color:#fcf2d9}
+.score-line strong{color:#ffe6a1;text-shadow:0 2px 10px #001c1540;font-weight:800}
+.points-month{color:#f0e8ce}
+.points-card-footer{border-color:#d7ddab3b}
+.points-card-footer>span{color:#e7eacf}
+.points-card-footer .text-button{padding:7px 13px;border-radius:99px;background:linear-gradient(#fae9b3,#d8b45e);color:#193f2a}
+.surface{box-shadow:0 3px 10px #233e2210}
+.primary{background:linear-gradient(140deg,#206840,#0b472d);color:#fff8df;border:1px solid #ad934a;box-shadow:inset 0 1px #ffffff35}
+.secondary{background:#fff9e9;color:#234c32;border-color:#cbb77e}
+.danger{background:#7a3228;color:#fff2e9;border-color:#a56149}
+.quick-actions{margin-bottom:20px}
+.quick-actions button{font-size:14px}
+.gold{color:#896e24}
+progress{background:#e6e1d1;accent-color:#c39d49}
+progress::-webkit-progress-bar{background:#e6e1d1}
+progress::-webkit-progress-value{background:linear-gradient(90deg,#bf9840,#f0d88a)}
+progress::-moz-progress-bar{background:#c39d49}
+.section-icon{color:#987727}
+.qr-member-id{color:#285a3c}
+.list-row{padding:14px 0}
+.list-value{color:#1b6740;font-size:22px}
+.rank-number{color:#806928}
+input,select{background:#fffdf6;color:var(--text);border-color:#c9c3b0;font-size:16px}
+input::placeholder{color:#8b9485}
+.bottom-nav{background:#0e402d;border-color:#c4a861;box-shadow:0 -6px 20px #113b211a}
+.bottom-nav button{color:#dedfcd;border-radius:10px}
+.bottom-nav button[aria-current="page"]{background:#286047;color:#ffe29b}
+.app-footer{color:#7a846f}
+.wide{width:100%}
+.rank-card{padding:19px}
+.rank-headline{font-size:30px;line-height:1.5;display:block;letter-spacing:-.8px;margin-top:8px;overflow-wrap:anywhere}
+.rank-card .muted{margin-bottom:10px}
+.gap-chips{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.gap-chip{font-size:12px;font-weight:650;padding:10px 9px;border-radius:10px;text-align:center}
+.behind{background:#fbe9e2;color:#9f4b3b}
+.ahead{background:#e7f0db;color:#386231}
+.rank-track{display:flex;align-items:flex-start;justify-content:space-around;gap:8px;padding:14px 0;position:relative}
+.rank-track:before{content:"";position:absolute;left:12%;right:12%;top:32px;height:4px;background:#d4d4c5}
+.track-node{position:relative;display:flex;flex-direction:column;align-items:center;flex:1;font-size:12px;min-width:0;text-align:center}
+.track-node b{display:grid;place-items:center;min-width:40px;height:40px;background:#8a9987;border:3px solid #f6f1e4;color:#fff;border-radius:50%;font-size:17px;z-index:1}
+.track-node.own b{background:#ac8736;box-shadow:0 0 0 2px #d4b35d}
+.track-node strong{font-size:18px;margin-top:6px}
+.track-node small{overflow-wrap:anywhere;max-width:100%;color:#61705b}
+.stats-card .section-heading{align-items:flex-start}
+.stats-card h2{padding-top:9px}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.stat-grid>div{padding:14px;background:#f5f0e3;border-radius:13px;min-width:0}
+.stat-grid small{display:block;font-size:11px;color:#69735e}
+.stat-grid strong{display:inline-block;font-size:30px;margin:3px 5px 0 0;line-height:1.4;overflow-wrap:anywhere}
+.stat-grid span{font-size:12px}
+.stats-card>.muted{font-size:11px;margin:0}
+.history-tabs{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:17px}
+.history-tabs [aria-pressed="true"]{background:#145637;color:#fff4d5;border-color:#bc9a4e}
+#historyRange{margin-bottom:16px}
+#historyMonthControls label{margin-top:0}
+.history-totals{background:#134d33 url("club-banner.svg") right center/cover;color:#fff5da}
+.history-totals h3{font-size:26px;color:#ffe3a0;margin:0}
+.history-totals .muted{color:#f0ead2;margin:5px 0 0}
+.history-month-label{background:#ece6d5;border-radius:10px;padding:9px 12px;font-size:14px;margin:8px 0 0}
+.month-summary{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.month-summary h3{margin-bottom:3px}
+.month-summary p{margin:0}
+.month-summary .list-value{font-size:24px}
+.board-own{margin-top:16px;background:#155539;color:#fff5dd;padding:17px}
+.board-own strong{font-size:20px;overflow-wrap:anywhere}
+.board-own .muted{color:#e0e4cc;margin:5px 0 0;font-size:12px}
+.ranking-head,.ranking-row{display:grid;grid-template-columns:34px minmax(0,1fr) 42px 48px;gap:8px;align-items:center}
+.ranking-head{padding:13px 10px;font-size:10px;color:#5d6e5d}
+.ranking-row{padding:12px 10px;border:1px solid #e4ddca;border-radius:13px;background:#fffdf7;min-height:66px}
+.ranking-row.own{background:#fff0ba;border:2px solid #8e792f;padding:11px 9px}
+.ranking-row .rank-number{width:auto;text-align:center}
+.ranking-person{display:flex;gap:9px;align-items:center;min-width:0}
+.ranking-person strong{font-size:13px;overflow-wrap:anywhere;line-height:1.5;min-width:0}
+.ranking-avatar{display:grid;place-items:center;flex-shrink:0;width:34px;height:34px;border:1px solid #c3b988;border-radius:50%;object-fit:cover;background:#e2e8d6;color:#466247;font-size:13px;font-weight:700;overflow:hidden}
+.ranking-points{font-size:18px;font-weight:750;text-align:right;font-variant-numeric:tabular-nums}
+.ranking-diff{font-size:14px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+.ranking-diff.higher{color:#1c7047}.ranking-diff.lower{color:#a44130}
+.ranking-key,#boardNote{font-size:11px;line-height:1.8}
+#boardMonth{margin-bottom:10px}
+#historyMore{margin-top:10px;width:100%}
+@media(max-width:400px){.profile-heading{flex-wrap:wrap}.profile-heading .badge{margin-left:100px;margin-top:-12px}.ranking-person{gap:6px}.ranking-avatar{width:28px;height:28px}.ranking-person strong{font-size:12px}.gap-chips{gap:6px}.gap-chip{font-size:11px}.rank-headline{font-size:26px}}
+@media(max-width:360px){.brand-header{margin-left:-14px;margin-right:-14px;padding-left:15px}.brand strong{font-size:13px}.brand small{font-size:8px}.quick-actions{grid-template-columns:1fr 1fr}.quick-actions button{font-size:12px;padding:12px 7px}.surface{padding:16px}.ranking-head,.ranking-row{grid-template-columns:26px minmax(0,1fr) 35px 40px;gap:5px}.ranking-head{font-size:9px}.ranking-avatar{width:25px;height:25px}.ranking-person strong{font-size:11px}.ranking-points{font-size:16px}.ranking-diff{font-size:12px}}

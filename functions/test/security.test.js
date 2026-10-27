@@ -239,3 +239,66 @@ test("monthly history rules allow own paged month and archive only; deny other a
  await db.collection("users").doc(U).update({isActive:false});
  await assertFails(getDocs(own));await assertFails(getDoc(doc(client,"seasonResults/2026-09/members/"+U)));
 });
+
+test("club board reads every page, matches month-close tie break, excludes staff/inactive and redacts identity",async()=>{
+ await seed();
+ const batch=db.batch();
+ for(let i=0;i<205;i++)batch.set(db.collection("users").doc("U"+i.toString(16).padStart(32,"0")),{role:"member",isActive:true,nickname:"Member "+i,monthlyPoints:1,pointsMonth:"2026-10",createdAt:admin.firestore.Timestamp.fromMillis(100+i)});
+ await batch.commit();
+ await db.collection("users").doc(U).update({monthlyPoints:24,createdAt:admin.firestore.Timestamp.fromMillis(2000),phone:"PRIVATE",pictureUrl:"https://profile.line-scdn.net/safe.png"});
+ await db.collection("users").doc(OTHER).update({monthlyPoints:24,createdAt:admin.firestore.Timestamp.fromMillis(1000),pictureUrl:"javascript:alert(1)"});
+ await db.collection("users").doc(S).update({monthlyPoints:999});
+ await db.collection("users").doc("inactive").set({role:"member",isActive:false,monthlyPoints:999,pointsMonth:"2026-10"});
+ const before=(await db.collection("users").doc(U).get()).data();
+ const result=await service.clubData(U,{view:"board",month:"2026-10"});
+ assert.equal(result.rows.length,207);assert.equal(result.total,207);
+ assert.equal(result.me.rank,2);assert.equal(result.before.points,24);assert.equal(result.tieCount,2);
+ assert.equal(result.rows[0].pictureUrl,"");assert.equal(result.me.pictureUrl,"https://profile.line-scdn.net/safe.png");
+ for(const row of result.rows)assert.deepEqual(Object.keys(row).sort(),["nickname","own","pictureUrl","points","rank"]);
+ assert.equal(JSON.stringify(result).includes(U),false);assert.equal(JSON.stringify(result).includes("PRIVATE"),false);
+ assert.deepEqual((await db.collection("users").doc(U).get()).data(),before);
+ assert.equal((await db.collection("pointTransactions").get()).size,0);
+ await assert.rejects(service.clubData(null,{view:"board",month:"2026-10"}),{code:"unauthenticated"});
+ await db.collection("users").doc(U).update({isActive:false});
+ await assert.rejects(service.clubData(U,{view:"board",month:"2026-10"}),{code:"permission-denied"});
+});
+test("club historical full ranking and Top3-only archives never invent an own rank",async()=>{
+ await seed();
+ await db.collection("posAwardMonths").doc("2026-09").set({state:"closed"});
+ await db.doc("seasonResults/2026-09/members/"+U).set({points:10,eligible:true,nickname:"Me",joinedAtMillis:2});
+ await db.doc("seasonResults/2026-09/members/"+OTHER).set({points:12,eligible:true,nickname:"Other",joinedAtMillis:1});
+ const old=await service.clubData(U,{view:"board",month:"2026-09"});
+ assert.equal(old.archived,true);assert.equal(old.me.rank,2);assert.equal(old.before.points,12);assert.equal(old.total,2);
+ await db.doc("seasonResults/2026-08").set({top3:[{rank:1,nickname:"Legacy",points:50}]});
+ const legacy=await service.clubData(U,{view:"board",month:"2026-08"});
+ assert.equal(legacy.complete,false);assert.equal(legacy.me,null);assert.equal(legacy.total,null);assert.equal(legacy.rows.length,1);
+ await db.collection("posAwardMonths").doc("2026-09").update({state:"closing"});
+ await assert.rejects(service.clubData(U,{view:"board",month:"2026-09"}),{code:"failed-precondition"});
+ await assert.rejects(service.clubData(U,{view:"board",month:"2026-11"}),{code:"invalid-argument"});
+});
+test("club stats are scoped to caller, count unique bills, include legacy/undated and never mutate",async()=>{
+ await seed();
+ const rows=[
+  {userId:U,points:4,billId:1,monthId:"2026-10"},
+  {userId:U,points:2,billId:1,monthId:"2026-10"},
+  {userId:U,points:3,billId:2,createdAt:admin.firestore.Timestamp.fromDate(new Date("2026-08-31T17:00:00Z"))},
+  {userId:U,points:-1},
+  {userId:OTHER,points:900,billId:3,monthId:"2026-09"}
+ ];
+ for(let i=0;i<rows.length;i++)await db.collection("pointTransactions").doc("tx"+i).set(rows[i]);
+ const result=await service.clubData(U,{view:"stats",userId:OTHER});
+ assert.equal(result.points,8);assert.equal(result.count,4);assert.equal(result.billCount,2);assert.equal(result.undated,1);
+ assert.deepEqual(result.months.map(m=>[m.month,m.points,m.billCount]),[["2026-10",6,1],["2026-09",3,1],["",-1,0]]);
+ assert.equal((await db.collection("pointTransactions").get()).size,5);
+ assert.equal((await db.collection("users").doc(U).get()).data().monthlyPoints,0);
+ const forged=OTHER;await db.collection("users").doc(forged).update({role:"admin"});
+ await assert.rejects(service.clubData(forged,{view:"stats"}),{code:"permission-denied"});
+});
+test("club read rechecks revoked membership before returning data",async()=>{
+ await seed();const {clubData}=require("../club-read");let calls=0;
+ await assert.rejects(clubData({db,FieldPath:admin.firestore.FieldPath,now:()=>clock,identity:async(uid,roles)=>{
+  calls++;if(calls===2)await db.collection("users").doc(U).update({isActive:false});
+  return service.identity(uid,roles);
+ }},U,{view:"board",month:"2026-10"}),{code:"permission-denied"});
+ assert.equal(calls,2);
+});

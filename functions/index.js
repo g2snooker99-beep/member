@@ -22,6 +22,7 @@ function callable(fn,write=true){return onCall({serviceAccount:runtimeServiceAcc
 exports.memberLineLogin=callable((s,u,d)=>s.exchange(d.idToken),false);
 exports.memberRegister=callable((s,u,d)=>s.register(u,d));
 exports.memberSession=callable((s,u)=>s.session(u),false);
+exports.memberClubData=callable((s,u,d)=>s.clubData(u,d),false);
 exports.memberAddPoints=callable((s,u,d)=>s.addPoints(u,d));
 exports.memberOpenMonth=callable((s,u,d)=>s.openMonth(u,d.month));
 exports.memberPreviewMonth=callable((s,u,d)=>s.previewMonth(u,d.month),false);

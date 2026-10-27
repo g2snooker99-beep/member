@@ -3,6 +3,7 @@
 const $=id=>document.getElementById(id);
 let db,call,uid,pending=null,scanner=null,busy=false,currentView="home",currentActive=false,profileVersion=0;
 let loadedViews={},loadingViews={},memberProfile=null,historyVersion=0,historyState=null;
+let clubVersion=0,clubBoards=new Map(),clubStats=null,statsTask=null,linePhoto="",boardRowsShown=20,boardGeneration=0;
 const status=s=>{$("status").textContent=s;};
 const labels={top1:"เสื้อ Limited อันดับ 1",top2:"เสื้อ Limited อันดับ 2",top3:"เสื้อ Limited อันดับ 3",discount10:"ส่วนลด 10% ใช้ได้หนึ่งบิล"};
 const monthAt=d=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok",year:"numeric",month:"2-digit"}).format(d).slice(0,7);
@@ -39,12 +40,13 @@ async function refresh(){
  const [session,s]=await Promise.all([call("memberSession",{}),db.collection("users").doc(uid).get()]);
  $("registration").hidden=session.registered;$("card").hidden=!session.registered;
  $("memberNav").hidden=!session.registered||!session.active;currentActive=!!session.active;
- profileVersion++;historyVersion++;historyState=null;loadedViews={};loadingViews={};
+ profileVersion++;historyVersion++;clubVersion++;boardGeneration++;historyState=null;loadedViews={};loadingViews={};clubBoards=new Map();clubStats=null;statsTask=null;
  if(!session.registered)return;
  if(!s.exists)throw Error("ไม่พบข้อมูลสมาชิก กรุณาติดต่อแอดมิน");
  const p=s.data();memberProfile=p;const points=Number.isFinite(p.monthlyPoints)?p.monthlyPoints:0;
  $("name").textContent=p.nickname||"สมาชิก G2";$("memberId").textContent=p.memberId||"รอตรวจสอบรหัส";
  $("initials").textContent=Array.from(p.nickname||"G2").slice(0,1).join("");
+ applyMemberPhoto(linePhoto||p.pictureUrl);
  $("monthlyPoints").textContent=String(points);$("pointsMonth").textContent="รอบเดือน "+monthLabel(p.pointsMonth);
  $("balance").textContent=`คะแนนเดือน ${p.pointsMonth||"รอตรวจสอบ"}: ${points}`;
  $("accountState").textContent=session.active?"ใช้งานอยู่":"บัญชีปิดใช้งาน";$("qrMemberId").textContent=p.memberId||"";
@@ -56,17 +58,19 @@ async function refresh(){
  $("staff").hidden=!session.capabilities?.staff;$("admin").hidden=!session.capabilities?.admin;
  if(!$("historyMonth").value)$("historyMonth").value=monthAt(new Date());
  $("historyMonth").max=monthAt(new Date());
+ if(!$("boardMonth").value)$("boardMonth").value=monthAt(new Date());$("boardMonth").max=monthAt(new Date());
+ void loadHomeClub();
  setView(currentView,false);await loadView(currentView);
 }
 async function loadView(view){
  if(view==="home"||loadedViews[view])return;
  if(loadingViews[view])return loadingViews[view];
- const version=profileVersion,historyGeneration=historyVersion;
+ const version=profileVersion,historyGeneration=historyVersion,boardRequest=boardGeneration;
  const task=(async()=>{
   if(view==="qr"){
    $("qr").replaceChildren();new QRCode($("qr"),{text:uid,width:224,height:224,colorDark:"#111915",colorLight:"#ffffff"});
   }else if(view==="history"){
-   await loadHistory();
+   if(!$("historyMonths").hidden)await renderMonthlyHistory();else await loadHistory();
   }else if(view==="rewards"){
    $("rewards").replaceChildren();empty("rewards","กำลังตรวจสิทธิ์ของคุณ…");
    const docs=await db.collection("monthlyRewards").where("userId","==",uid).limit(100).get();
@@ -88,25 +92,18 @@ async function loadView(view){
    }
    if(!entries.length)empty("rewards","ยังไม่มีสิทธิ์รางวัลที่ออกให้คุณ สิทธิ์ประจำเดือนจะแสดงที่นี่หลังสรุปรอบ");
   }else if(view==="board"){
-   $("leaderboard").replaceChildren();$("results").replaceChildren();empty("leaderboard","กำลังโหลดอันดับสมาชิก…");
-   const [board,results]=await Promise.all([db.collection("publicLeaderboard").where("monthId","==",monthAt(new Date())).orderBy("points","desc").limit(100).get(),db.collection("seasonResults").orderBy("monthId","desc").limit(6).get()]);
-   if(version!==profileVersion)return;
-   $("leaderboard").replaceChildren();let rank=0;
-   board.forEach(d=>{const p=d.data(),line=node("div","","list-row"),copy=node("div","","list-copy");copy.append(node("strong",p.nickname||"สมาชิก"));line.append(node("span",String(++rank).padStart(2,"0"),"rank-number"),copy,node("span",String(p.points??0),"list-value"));$("leaderboard").append(line);});
-   if(!rank)empty("leaderboard","ยังไม่มีอันดับคะแนนในรอบเดือนนี้");
-   let count=0;results.forEach(d=>{count++;row("results",monthLabel(d.data().monthId||d.id)+": "+(d.data().top3||[]).map(p=>`${p.rank}. ${p.nickname} ${p.points} แต้ม`).join(" / "));});
-   if(!count)empty("results","ยังไม่มีผลสรุปรอบเดือนที่ผ่านมา");
+   await loadBoardView();
   }
-  if(version===profileVersion&&(view!=="history"||historyGeneration===historyVersion))loadedViews[view]=true;
+  if(version===profileVersion&&(view!=="history"||historyGeneration===historyVersion)&&(view!=="board"||boardRequest===boardGeneration))loadedViews[view]=true;
  })();
- loadingViews[view]=task;try{await task;}finally{if(version===profileVersion&&(view!=="history"||historyGeneration===historyVersion))delete loadingViews[view];}
+ loadingViews[view]=task;try{await task;}finally{if(version===profileVersion&&(view!=="history"||historyGeneration===historyVersion)&&(view!=="board"||boardRequest===boardGeneration))delete loadingViews[view];}
 }
 
 function validHistoryMonth(month){return /^\d{4}-(0[1-9]|1[0-2])$/.test(month||"")&&month<=monthAt(new Date());}
 async function selectHistoryMonth(month){
  if(busy||!currentActive)return;
  if(!validHistoryMonth(month)){status("กรุณาเลือกเดือนปัจจุบันหรือเดือนที่ผ่านมา");return;}
- $("historyMonth").value=month;historyVersion++;historyState=null;
+ $("historyMonth").value=month;$("historyRange").value="month";$("historyMonthControls").hidden=false;historyVersion++;historyState=null;
  delete loadedViews.history;delete loadingViews.history;
  await navigate("history");
 }
@@ -124,6 +121,11 @@ $("historyMore").onclick=async()=>{
  catch(e){status((e.message||"โหลดไม่ได้")+" · กดโหลดรายการเพิ่มเพื่อลองใหม่");}
 };
 function renderHistorySummary(state){
+ if(state.month==="all"){
+  const total=clubStats?.points;
+  $("historyTotal").textContent=Number.isFinite(total)?total+" แต้มจากประวัติทั้งหมด":state.hasMore?"กำลังแสดงบางรายการ":state.entries.reduce((n,t)=>n+(Number.isFinite(t.points)?t.points:0),0)+" แต้มจากรายการที่บันทึก";
+  $("historySummaryNote").textContent="เฉพาะประวัติที่ระบบบันทึกไว้ ไม่รวมยอดยกมาที่ไม่มีรายการ";return;
+ }
  const snapshot=state.summary;
  const points=snapshot?.exists?snapshot.data().points:memberProfile?.pointsMonth===state.month?memberProfile.monthlyPoints:null;
  const authoritative=Number.isFinite(points);
@@ -132,10 +134,10 @@ function renderHistorySummary(state){
  $("historySummaryNote").textContent=snapshot?.exists?"ยอดที่เก็บไว้เมื่อสรุปรอบเดือน":authoritative?"ยอดคะแนนสะสมของรอบนี้":state.summaryFailed?"อ่านยอดสรุปไม่ได้ · แสดงเฉพาะรายการที่อ่านได้":state.hasMore?"กดโหลดรายการเพิ่มเพื่อดูให้ครบ":"ไม่มีข้อมูลสรุปรอบ · ยอดนี้รวมเฉพาะประวัติรายการ ไม่รวมยอดยกมา";
 }
 async function loadHistory(more=false){
- const month=$("historyMonth").value;
- if(!validHistoryMonth(month))throw Error("กรุณาเลือกเดือนปัจจุบันหรือเดือนที่ผ่านมา");
+ const month=$("historyRange").value==="all"?"all":$("historyMonth").value;
+ if(month!=="all"&&!validHistoryMonth(month))throw Error("กรุณาเลือกเดือนปัจจุบันหรือเดือนที่ผ่านมา");
  const generation=historyVersion,profile=profileVersion;
- const state=more?historyState:{month,entries:[],cursor:null,legacyCursor:null,primaryMore:true,legacyMore:true,hasMore:false,loading:false};
+ const state=more?historyState:{month,entries:[],cursor:null,legacyCursor:null,primaryMore:true,legacyMore:month!=="all",hasMore:false,loading:false};
  if(!state||state.loading)return;
  state.loading=true;historyState=state;
  const live=()=>generation===historyVersion&&profile===profileVersion&&historyState===state;
@@ -148,20 +150,22 @@ async function loadHistory(more=false){
  try{
   // Equality-only query reuses automatic indexes; monthId follows the actual points round,
   // including backfills whose createdAt can be in another month.
-  let query=db.collection("pointTransactions").where("userId","==",uid).where("monthId","==",month).limit(50);
+  let query=db.collection("pointTransactions").where("userId","==",uid);
+  if(month!=="all")query=query.where("monthId","==",month);query=query.limit(50);
   if(more&&state.cursor)query=query.startAfter(state.cursor);
-  const [y,m]=month.split("-").map(Number);
-  // Legacy transactions may predate monthId. Use their Bangkok createdAt month
-  // with the existing userId/createdAt index, without overriding explicit rounds.
-  let legacy=db.collection("pointTransactions").where("userId","==",uid)
-   .where("createdAt",">=",new Date(Date.UTC(y,m-1,1)-7*3600000))
-   .where("createdAt","<",new Date(Date.UTC(y,m,1)-7*3600000))
-   .orderBy("createdAt","desc").limit(50);
-  if(more&&state.legacyCursor)legacy=legacy.startAfter(state.legacyCursor);
+  let legacy=null;
+  if(month!=="all"){
+   const [y,m]=month.split("-").map(Number);
+   legacy=db.collection("pointTransactions").where("userId","==",uid)
+    .where("createdAt",">=",new Date(Date.UTC(y,m-1,1)-7*3600000))
+    .where("createdAt","<",new Date(Date.UTC(y,m,1)-7*3600000))
+    .orderBy("createdAt","desc").limit(50);
+   if(more&&state.legacyCursor)legacy=legacy.startAfter(state.legacyCursor);
+  }
   const [docs,oldDocs,summary]=await Promise.all([
    more&&!state.primaryMore?Promise.resolve(null):query.get(),
-   more&&!state.legacyMore?Promise.resolve(null):legacy.get(),
-   more?Promise.resolve(null):db.collection("seasonResults").doc(month).collection("members").doc(uid).get().then(value=>({value}),()=>({failed:true}))
+   month==="all"||more&&!state.legacyMore?Promise.resolve(null):legacy.get(),
+   month==="all"||more?Promise.resolve(null):db.collection("seasonResults").doc(month).collection("members").doc(uid).get().then(value=>({value}),()=>({failed:true}))
   ]);
   if(!live())return;
   if(summary){state.summary=summary.value;state.summaryFailed=summary.failed;}
@@ -179,9 +183,11 @@ async function loadHistory(more=false){
   state.entries=[...entries.values()];
   state.entries.sort((a,b)=>(b.createdAt?.toMillis?.()||0)-(a.createdAt?.toMillis?.()||0)||String(a.id).localeCompare(String(b.id)));
   $("history").replaceChildren();
+  let group=null;
   for(const tx of state.entries){
+   if(month==="all"){const key=transactionMonth(tx);if(key!==group){$("history").append(node("h3",key?monthLabel(key):"ไม่ระบุเดือน","history-month-label"));group=key;}}
    const points=Number(tx.points),line=node("div","","list-row"),copy=node("div","","list-copy");
-   copy.append(node("strong",tx.billId?"บิล #"+tx.billId:"รายการคะแนน"),node("small",stamp(tx.createdAt)+" · "+monthLabel(tx.monthId)));
+   copy.append(node("strong",tx.billId?"บิล #"+tx.billId:"รายการคะแนน"),node("small",stamp(tx.createdAt)+" · "+(transactionMonth(tx)?monthLabel(transactionMonth(tx)):"ไม่ระบุเดือน")));
    line.append(copy,node("span",Number.isFinite(points)?(points>0?"+":"")+points:"—","list-value"));$("history").append(line);
   }
   if(!state.entries.length)empty("history","ยังไม่มีรายการคะแนนในเดือนที่เลือก");
@@ -193,6 +199,167 @@ async function loadHistory(more=false){
  }finally{
   state.loading=false;if(live())$("historyMore").hidden=!state.hasMore;
  }
+}
+
+
+function safePhoto(value){
+ try{const u=new URL(value);return u.protocol==="https:"&&!u.username&&!u.password&&!u.port&&(u.hostname==="line-scdn.net"||u.hostname.endsWith(".line-scdn.net"))&&u.href.length<=2048?u.href:"";}catch{return "";}
+}
+function applyMemberPhoto(value){
+ const src=safePhoto(value),img=$("memberPhoto");img.hidden=true;$("initials").hidden=false;
+ if(!src)return;
+ img.onload=()=>{img.hidden=false;$("initials").hidden=true;};
+ img.onerror=()=>{img.hidden=true;$("initials").hidden=false;};
+ img.src=src;
+}
+async function readLinePhoto(){
+ try{if(typeof liff.getProfile!=="function")return;const p=await liff.getProfile();if(p.userId!==uid)return;linePhoto=safePhoto(p.pictureUrl);if(linePhoto)applyMemberPhoto(linePhoto);}catch{/* Existing stored photo/initials remain usable without LINE profile permission. */}
+}
+function avatar(parent,p){
+ const src=safePhoto(p.own?(linePhoto||memberProfile?.pictureUrl||p.pictureUrl):p.pictureUrl);
+ const initials=node("span",Array.from(p.nickname||"G2").slice(0,1).join(""),"ranking-avatar");initials.setAttribute?.("aria-hidden","true");parent.append(initials);
+ if(!src)return;
+ const img=node("img","","ranking-avatar");img.alt="";img.referrerPolicy="no-referrer";img.hidden=true;
+ img.onload=()=>{initials.hidden=true;img.hidden=false;};img.onerror=()=>{initials.hidden=false;img.hidden=true;};img.src=src;parent.append(img);
+}
+async function clubBoard(month){
+ if(clubBoards.has(month))return clubBoards.get(month);
+ const version=clubVersion,map=clubBoards;
+ const task=call("memberClubData",{view:"board",month});
+ map.set(month,task);
+ try{const result=await task;if(version===clubVersion)map.set(month,Promise.resolve(result));return result;}
+ catch(e){if(version===clubVersion)map.delete(month);throw e;}
+}
+async function getClubStats(){
+ if(clubStats)return clubStats;if(statsTask)return statsTask;
+ const version=clubVersion,task=call("memberClubData",{view:"stats"});statsTask=task;
+ try{const value=await task;if(version===clubVersion)clubStats=value;return value;}
+ finally{if(version===clubVersion)statsTask=null;}
+}
+function ownRankText(data){
+ if(data.me)return "#"+data.me.rank+" จาก "+data.total+" คน";
+ if(data.complete===false)return "ไม่มีอันดับเต็มของรอบนี้";
+ return memberProfile?.role==="member"?"ยังไม่มีอันดับในรอบนี้":"บัญชีพนักงาน / ผู้ดูแลไม่ร่วมอันดับ";
+}
+function rankGap(other,me,before){
+ if(!me)return "—";
+ if(!other)return before?"คุณอยู่อันดับแรก":"ไม่มีอันดับถัดไป";
+ const gap=Math.abs(other.points-me.points);
+ if(!gap)return "แต้มเท่าอันดับ "+other.rank;
+ return (before?"ตามอันดับ ":"นำอันดับ ")+other.rank+" อยู่ "+gap+" แต้ม";
+}
+function renderHomeRank(data){
+ $("homeRank").textContent=ownRankText(data);
+ $("homeRankScope").textContent=monthLabel(data.month)+" · สมาชิกที่มีสิทธิ์ร่วมอันดับ";
+ $("gapBefore").textContent=rankGap(data.before,data.me,true);$("gapAfter").textContent=rankGap(data.after,data.me,false);
+ $("rankTrack").replaceChildren();
+ if(data.me)for(const p of [data.before,data.me,data.after].filter(Boolean)){
+  const item=node("div","","track-node"+(p.own?" own":""));item.append(node("b",String(p.rank)),node("strong",String(p.points)+" แต้ม"),node("small",p.own?"คุณ":p.nickname));$("rankTrack").append(item);
+ }
+ $("homeRankNote").textContent=data.tieCount>1?"มีผู้ได้แต้มเท่ากัน · ลำดับใช้เกณฑ์วันสมัครเดียวกับการปิดรอบ":"คะแนนเท่ากันเรียงตามวันสมัคร แล้วใช้ลำดับรหัสภายใน";
+}
+async function loadHomeClub(){
+ const version=clubVersion;
+ $("homeRank").textContent="กำลังตรวจอันดับ…";$("allStatsNote").textContent="กำลังอ่านประวัติที่บันทึกในระบบ…";
+ await Promise.allSettled([
+  clubBoard(monthAt(new Date())).then(data=>{if(version===clubVersion)renderHomeRank(data);},()=>{
+   if(version===clubVersion){$("homeRank").textContent="ยังโหลดอันดับไม่ได้";$("homeRankNote").textContent="กดอัปเดตเพื่อลองใหม่";}
+  }),
+  getClubStats().then(data=>{
+   if(version!==clubVersion)return;
+   $("allPoints").textContent=String(data.points);$("allBills").textContent=String(data.billCount);
+   $("allStatsNote").textContent=data.count+" รายการ · เฉพาะข้อมูลที่บันทึกในระบบ ไม่รวมยอดยกมาที่ไม่มีประวัติ";
+   if(historyState?.month==="all")renderHistorySummary(historyState);
+  },()=>{if(version===clubVersion)$("allStatsNote").textContent="ยังอ่านสถิติไม่ได้ กดอัปเดตเพื่อลองใหม่";})
+ ]);
+}
+$("refreshClub").onclick=async()=>{
+ if(busy||!currentActive)return;
+ clubVersion++;boardGeneration++;clubBoards=new Map();clubStats=null;statsTask=null;visibleBoard=null;
+ delete loadedViews.board;delete loadingViews.board;await loadHomeClub();
+};
+$("showBoard").onclick=()=>{$("boardMonth").value=monthAt(new Date());return selectBoardMonth();};
+$("boardMonth").onchange=()=>selectBoardMonth();
+$("boardLoad").onclick=()=>selectBoardMonth();
+async function selectBoardMonth(){
+ const month=$("boardMonth").value;
+ if(busy||!currentActive)return;
+ if(!validHistoryMonth(month)){status("กรุณาเลือกเดือนปัจจุบันหรือเดือนที่ผ่านมา");return;}
+ boardGeneration++;delete loadedViews.board;delete loadingViews.board;boardRowsShown=20;
+ return navigate("board");
+}
+let visibleBoard=null;
+async function loadBoardView(){
+ const version=clubVersion,generation=boardGeneration,month=$("boardMonth").value||monthAt(new Date());
+ $("leaderboard").replaceChildren();empty("leaderboard","กำลังโหลดอันดับสมาชิก…");$("boardMore").hidden=true;
+ const data=await clubBoard(month);
+ if(version!==clubVersion||generation!==boardGeneration)return;
+ visibleBoard=data;boardRowsShown=20;renderBoardRows();
+ // Top3 archives are optional; a failure must not hide the full selected ranking.
+ try{
+  const results=await db.collection("seasonResults").orderBy("monthId","desc").limit(24).get();
+  if(version!==clubVersion||generation!==boardGeneration)return;
+  $("results").replaceChildren();let count=0;
+  results.forEach(d=>{count++;row("results",monthLabel(d.data().monthId||d.id)+": "+(d.data().top3||[]).map(p=>p.rank+". "+p.nickname+" "+p.points+" แต้ม").join(" / "));});
+  if(!count)empty("results","ยังไม่มีผลสรุปรอบเดือนที่ผ่านมา");
+ }catch{if(version===clubVersion&&generation===boardGeneration)empty("results","ยังโหลดผล Top 3 ไม่ได้");}
+}
+function renderBoardRows(){
+ const data=visibleBoard;if(!data)return;
+ $("boardOwn").textContent=ownRankText(data)+(data.me?" · "+data.me.points+" แต้ม":"");
+ $("boardScope").textContent=monthLabel(data.month)+" · "+(data.archived?"ประวัติเมื่อปิดรอบ":"อันดับปัจจุบัน คะแนนอาจเปลี่ยนได้");
+ $("boardNote").textContent=data.complete===false?"รอบเก่านี้มีเฉพาะผล Top 3 ไม่มีข้อมูลอันดับเต็ม จึงยังระบุอันดับของคุณไม่ได้":
+ "คะแนนเท่ากันเรียงตามวันสมัคร แล้วใช้ลำดับรหัสภายใน เช่นเดียวกับการสรุปรางวัล"+(data.tieCount>1?" · คุณมีคะแนนเท่ากับสมาชิกอื่น":"");
+ $("leaderboard").replaceChildren();
+ for(const p of data.rows.slice(0,boardRowsShown)){
+  const line=node("div","","ranking-row"+(p.own?" own":"")),person=node("div","","ranking-person");
+  avatar(person,p);person.append(node("strong",p.nickname+(p.own?" (คุณ)":"")));
+  const diff=data.me?p.points-data.me.points:null;
+  line.append(node("span",String(p.rank),"rank-number"),person,node("span",String(p.points),"ranking-points"),node("span",diff===null||p.own?"—":diff===0?"เท่ากัน":(diff>0?"+":"−")+Math.abs(diff),"ranking-diff"+(diff>0?" higher":diff<0?" lower":"")));
+  $("leaderboard").append(line);
+ }
+ if(!data.rows.length)empty("leaderboard","ยังไม่มีข้อมูลอันดับในรอบที่เลือก");
+ $("boardCount").textContent="แสดง "+Math.min(boardRowsShown,data.rows.length)+" จาก "+data.rows.length+" คน"+(data.complete===false?" · เฉพาะ Top 3 ที่เก็บไว้":"");
+ $("boardMore").hidden=boardRowsShown>=data.rows.length;
+}
+$("boardMore").onclick=()=>{if(!busy&&currentActive){boardRowsShown+=20;renderBoardRows();}};
+function transactionMonth(tx){
+ if(/^\d{4}-(0[1-9]|1[0-2])$/.test(tx.monthId||""))return tx.monthId;
+ if(/^\d{4}-(0[1-9]|1[0-2])$/.test(tx.monthKey||""))return tx.monthKey;
+ const d=tx.createdAt?.toDate?.();return d&&Number.isFinite(d.getTime())?monthAt(d):"";
+}
+async function setHistoryMode(mode){
+ if(busy||!currentActive)return;
+ $("historyMonths").hidden=mode!=="monthly";$("historyTransactionsPanel").hidden=mode==="monthly";
+ $("historyMonthly").setAttribute?.("aria-pressed",mode==="monthly"?"true":"false");
+ $("historyTransactions").setAttribute?.("aria-pressed",mode==="monthly"?"false":"true");
+ historyVersion++;historyState=null;delete loadedViews.history;delete loadingViews.history;
+ return navigate("history");
+}
+$("historyMonthly").onclick=()=>setHistoryMode("monthly");
+$("historyTransactions").onclick=()=>setHistoryMode("transactions");
+$("historyRange").onchange=()=>{
+ $("historyMonthControls").hidden=$("historyRange").value==="all";
+ return setHistoryMode("transactions");
+};
+$("showAllHistory").onclick=()=>{
+ $("historyRange").value="all";$("historyMonthControls").hidden=true;
+ return setHistoryMode("transactions");
+};
+async function renderMonthlyHistory(){
+ const version=historyVersion,profile=profileVersion;
+ $("historyMonths").replaceChildren();empty("historyMonths","กำลังสรุปประวัติรายเดือน…");
+ const data=await getClubStats();if(version!==historyVersion||profile!==profileVersion)return;
+ $("historyMonths").replaceChildren();
+ for(const month of data.months){
+  const card=node("article","","surface month-summary"),copy=node("div","");
+  copy.append(node("h3",month.month?monthLabel(month.month):"ไม่ระบุเดือน"),node("p",month.billCount+" บิล · "+month.count+" รายการ","muted"));
+  const score=node("div","");score.append(node("strong",String(month.points)+" แต้ม","list-value"));
+  if(month.month){const button=node("button","ดูอันดับ ›","text-button");button.type="button";button.onclick=()=>{$("boardMonth").value=month.month;selectBoardMonth();};score.append(button);}
+  card.append(copy,score);$("historyMonths").append(card);
+ }
+ if(!data.months.length)empty("historyMonths","ยังไม่มีประวัติแต้มที่บันทึกไว้");
+ empty("historyMonths","สรุปจากรายการที่บันทึก อาจต่างจากยอดปิดรอบที่มียอดยกมา");
 }
 
 async function action(fn){
@@ -263,5 +430,6 @@ $("setStaff").onclick=()=>action(async()=>{await call("memberSetStaff",{userId:$
   const saved=sessionStorage.getItem("g2PendingManual");
   if(saved){try{const p=JSON.parse(saved);if(!p?.data?.requestId||!p.key)throw Error("Invalid pending record");pending=p;}catch{throw Error("ข้อมูลรายการค้างไม่สมบูรณ์ กรุณาให้แอดมินตรวจประวัติก่อนทำรายการใหม่");}}
   await refresh();
+  void readLinePhoto();
   status(pending?"มีรายการเพิ่มแต้มค้าง กดส่งรายการค้างเดิม":"เข้าสู่ระบบแล้ว");
 }catch(e){status(e.message);}})();
