@@ -30,10 +30,10 @@ async function ui(capabilities={staff:true,admin:true},options={}){
    startAfter(doc){return q(name,filters,cap,doc.id);},
    get:async()=>{
     fixture.reads.push(name);(fixture.queries??=[]).push({name,filters,cursor,cap});
-    if(name==="pointTransactions"&&options.delayHistory)await new Promise(resolve=>{fixture.releaseHistory=resolve;});
+    if(name==="pointTransactions"&&options.delayHistory&&filters.some(f=>f.field==="monthId"))await new Promise(resolve=>{fixture.releaseHistory=resolve;});
     let entries=name==="monthlyRewards"?(options.rewards||[]):name==="pointTransactions"?(options.history||[]):[];
     entries=entries.map((d,i)=>({id:d.id||String(i).padStart(3,"0"),...d}));
-    for(const {field,value} of filters)entries=entries.filter(d=>field==="userId"?(d.userId||uid)===value:d[field]===value);
+    for(const {field,op,value} of filters)entries=entries.filter(d=>field==="userId"?(d.userId||uid)===value:field==="createdAt"?(d.createdAtMillis!==undefined&&(op===">="?d.createdAtMillis>=Number(value):d.createdAtMillis<Number(value))):d[field]===value);
     entries.sort((a,b)=>a.id.localeCompare(b.id));
     if(cursor!==null)entries=entries.filter(d=>d.id>cursor);
     entries=entries.slice(0,cap);
@@ -172,17 +172,17 @@ test("Chromium: reward QR is generated only on demand and used rewards have no Q
 
 test("Chromium: previous month shows own snapshot and all pages beyond thirty; backfill follows monthId",async()=>{
  const history=Array.from({length:61},(_,i)=>({id:String(i).padStart(3,"0"),points:1,monthId:"2026-09",billId:100+i,createdAtMillis:Date.UTC(2026,9,2)}));
- history.push({id:"other-month",points:999,monthId:"2026-10"},{id:"other-user",points:999,monthId:"2026-09",userId:"U"+"b".repeat(32)});
+ history.push({id:"legacy-september",points:4,createdAtMillis:Date.UTC(2026,8,2)},{id:"other-month",points:999,monthId:"2026-10",createdAtMillis:Date.UTC(2026,8,2)},{id:"other-user",points:999,monthId:"2026-09",userId:"U"+"b".repeat(32)});
  const h=await ui({staff:false,admin:false},{profileRole:"member",points:12,history,snapshots:{"2026-09":72}});
  try{
   await h.page.locator("#nav-history").click();
   await h.page.locator("#historyMonth").fill("2026-09");
   await h.page.locator("#historyMonth").dispatchEvent("change");
   await h.page.locator("#historyTotal").filter({hasText:"72 แต้ม"}).waitFor();
-  assert.equal(await h.page.locator("#history .list-row").count(),50);
+  assert.equal(await h.page.locator("#history .list-row").count(),51);
   await h.page.locator("#historyMore").click();
-  await h.page.locator("#historyCount").filter({hasText:"61 รายการ"}).waitFor();
-  assert.equal(await h.page.locator("#history .list-row").count(),61);
+  await h.page.locator("#historyCount").filter({hasText:"62 รายการ"}).waitFor();
+  assert.equal(await h.page.locator("#history .list-row").count(),62);
   assert.equal(await h.page.locator("#historyMore").isVisible(),false);
   assert.equal(await h.page.locator("#monthlyPoints").textContent(),"12");
   assert.ok(await h.page.locator("#historySummaryNote").innerText().then(x=>x.includes("สรุปรอบเดือน")));

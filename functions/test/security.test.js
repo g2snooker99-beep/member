@@ -226,6 +226,9 @@ test("monthly history rules allow own paged month and archive only; deny other a
  await db.doc("seasonResults/2026-09/members/"+OTHER).set({points:99,userId:OTHER});
  const client=env.authenticatedContext(U).firestore();
  const own=query(collection(client,"pointTransactions"),where("userId","==",U),where("monthId","==","2026-09"),limit(50));
+ await db.collection("pointTransactions").doc("legacy").set({userId:U,points:4,createdAt:admin.firestore.Timestamp.fromDate(new Date("2026-09-01T00:00:00Z"))});
+ const legacy=query(collection(client,"pointTransactions"),where("userId","==",U),where("createdAt",">=",new Date("2026-08-31T17:00:00Z")),where("createdAt","<",new Date("2026-09-30T17:00:00Z")),require("firebase/firestore").orderBy("createdAt","desc"),limit(50));
+ assert.equal((await assertSucceeds(getDocs(legacy))).size,1);
  const rows=await assertSucceeds(getDocs(own));assert.equal(rows.size,1);assert.equal(rows.docs[0].data().points,7);
  assert.equal((await assertSucceeds(getDocs(query(own,startAfter(rows.docs[0]))))).size,0);
  assert.equal((await assertSucceeds(getDoc(doc(client,"seasonResults/2026-09/members/"+U)))).data().points,17);

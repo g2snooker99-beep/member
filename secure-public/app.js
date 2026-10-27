@@ -135,7 +135,7 @@ async function loadHistory(more=false){
  const month=$("historyMonth").value;
  if(!validHistoryMonth(month))throw Error("กรุณาเลือกเดือนปัจจุบันหรือเดือนที่ผ่านมา");
  const generation=historyVersion,profile=profileVersion;
- const state=more?historyState:{month,entries:[],cursor:null,hasMore:false,loading:false};
+ const state=more?historyState:{month,entries:[],cursor:null,legacyCursor:null,primaryMore:true,legacyMore:true,hasMore:false,loading:false};
  if(!state||state.loading)return;
  state.loading=true;historyState=state;
  const live=()=>generation===historyVersion&&profile===profileVersion&&historyState===state;
@@ -150,12 +150,33 @@ async function loadHistory(more=false){
   // including backfills whose createdAt can be in another month.
   let query=db.collection("pointTransactions").where("userId","==",uid).where("monthId","==",month).limit(50);
   if(more&&state.cursor)query=query.startAfter(state.cursor);
-  const [docs,summary]=await Promise.all([query.get(),more?Promise.resolve(null):db.collection("seasonResults").doc(month).collection("members").doc(uid).get().then(value=>({value}),()=>({failed:true}))]);
+  const [y,m]=month.split("-").map(Number);
+  // Legacy transactions may predate monthId. Use their Bangkok createdAt month
+  // with the existing userId/createdAt index, without overriding explicit rounds.
+  let legacy=db.collection("pointTransactions").where("userId","==",uid)
+   .where("createdAt",">=",new Date(Date.UTC(y,m-1,1)-7*3600000))
+   .where("createdAt","<",new Date(Date.UTC(y,m,1)-7*3600000))
+   .orderBy("createdAt","desc").limit(50);
+  if(more&&state.legacyCursor)legacy=legacy.startAfter(state.legacyCursor);
+  const [docs,oldDocs,summary]=await Promise.all([
+   more&&!state.primaryMore?Promise.resolve(null):query.get(),
+   more&&!state.legacyMore?Promise.resolve(null):legacy.get(),
+   more?Promise.resolve(null):db.collection("seasonResults").doc(month).collection("members").doc(uid).get().then(value=>({value}),()=>({failed:true}))
+  ]);
   if(!live())return;
   if(summary){state.summary=summary.value;state.summaryFailed=summary.failed;}
-  const page=[];docs.forEach(d=>page.push(d));
-  state.cursor=page.at(-1)||state.cursor;state.hasMore=page.length===50;
-  state.entries.push(...page.map(d=>({...d.data(),id:d.id})));
+  const page=[],oldPage=[];docs?.forEach(d=>page.push(d));oldDocs?.forEach(d=>oldPage.push(d));
+  if(docs){state.cursor=page.at(-1)||state.cursor;state.primaryMore=page.length===50;}
+  if(oldDocs){state.legacyCursor=oldPage.at(-1)||state.legacyCursor;state.legacyMore=oldPage.length===50;}
+  state.hasMore=state.primaryMore||state.legacyMore;
+  const entries=new Map(state.entries.map(t=>[t.id,t]));
+  for(const d of page)entries.set(d.id,{...d.data(),id:d.id});
+  for(const d of oldPage){
+   const tx=d.data();
+   if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(tx.monthId||"")&&(!tx.monthKey||tx.monthKey===month))
+    entries.set(d.id,{...tx,id:d.id,monthId:month});
+  }
+  state.entries=[...entries.values()];
   state.entries.sort((a,b)=>(b.createdAt?.toMillis?.()||0)-(a.createdAt?.toMillis?.()||0)||String(a.id).localeCompare(String(b.id)));
   $("history").replaceChildren();
   for(const tx of state.entries){
