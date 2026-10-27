@@ -215,3 +215,24 @@ test("rules reject create-update-delete bypasses for every client role and priva
  const member=clients[1];
  for(const path of ["rewardRedemptions/protected","rewardBillClaims/protected","migrationRuns/protected","testOwnerApprovals/protected","releaseRehearsals/protected"])await assertFails(getDoc(doc(member,path)));
 });
+
+test("monthly history rules allow own paged month and archive only; deny other and inactive members",async()=>{
+ await seed();
+ const {limit,startAfter}=require("firebase/firestore");
+ await db.collection("pointTransactions").doc("own-old").set({userId:U,monthId:"2026-09",points:7});
+ await db.collection("pointTransactions").doc("own-new").set({userId:U,monthId:"2026-10",points:2});
+ await db.collection("pointTransactions").doc("other-old").set({userId:OTHER,monthId:"2026-09",points:99});
+ await db.doc("seasonResults/2026-09/members/"+U).set({points:17,userId:U});
+ await db.doc("seasonResults/2026-09/members/"+OTHER).set({points:99,userId:OTHER});
+ const client=env.authenticatedContext(U).firestore();
+ const own=query(collection(client,"pointTransactions"),where("userId","==",U),where("monthId","==","2026-09"),limit(50));
+ const rows=await assertSucceeds(getDocs(own));assert.equal(rows.size,1);assert.equal(rows.docs[0].data().points,7);
+ assert.equal((await assertSucceeds(getDocs(query(own,startAfter(rows.docs[0]))))).size,0);
+ assert.equal((await assertSucceeds(getDoc(doc(client,"seasonResults/2026-09/members/"+U)))).data().points,17);
+ await assertSucceeds(getDoc(doc(client,"seasonResults/2026-08/members/"+U)));
+ await assertFails(getDoc(doc(client,"seasonResults/2026-09/members/"+OTHER)));
+ await assertFails(getDocs(query(collection(client,"pointTransactions"),where("monthId","==","2026-09"))));
+ await assertFails(getDocs(query(collection(client,"pointTransactions"),where("userId","==",OTHER),where("monthId","==","2026-09"))));
+ await db.collection("users").doc(U).update({isActive:false});
+ await assertFails(getDocs(own));await assertFails(getDoc(doc(client,"seasonResults/2026-09/members/"+U)));
+});
