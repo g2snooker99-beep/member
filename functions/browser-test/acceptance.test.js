@@ -23,14 +23,34 @@ async function ui(capabilities={staff:true,admin:true},options={}){
   window.liff={init:async()=>{},isLoggedIn:()=>true,getIDToken:()=>"test-only-line-token"};
   window.QRCode=function(el,config){window.fixture.qrs.push(config);const canvas=document.createElement("canvas");canvas.width=config.width;canvas.height=config.height;el.append(canvas);};
   window.Html5QrcodeScanner=function(){};
-  const q=name=>({where(){return this;},orderBy(){return this;},limit(){return this;},
+  const q=(name,filters=[],cap=Infinity,cursor=null)=>({
+   where(field,op,value){return q(name,[...filters,{field,op,value}],cap,cursor);},
+   orderBy(){return this;},
+   limit(n){return q(name,filters,n,cursor);},
+   startAfter(doc){return q(name,filters,cap,doc.id);},
    get:async()=>{
-    fixture.reads.push(name);
+    fixture.reads.push(name);(fixture.queries??=[]).push({name,filters,cursor,cap});
     if(name==="pointTransactions"&&options.delayHistory)await new Promise(resolve=>{fixture.releaseHistory=resolve;});
-    const entries=name==="monthlyRewards"?(options.rewards||[]):name==="pointTransactions"?(options.history||[]):[];
-    return {forEach(fn){entries.forEach((d,i)=>fn({id:d.id||String(i),data:()=>d}));}};
+    let entries=name==="monthlyRewards"?(options.rewards||[]):name==="pointTransactions"?(options.history||[]):[];
+    entries=entries.map((d,i)=>({id:d.id||String(i).padStart(3,"0"),...d}));
+    for(const {field,value} of filters)entries=entries.filter(d=>field==="userId"?(d.userId||uid)===value:d[field]===value);
+    entries.sort((a,b)=>a.id.localeCompare(b.id));
+    if(cursor!==null)entries=entries.filter(d=>d.id>cursor);
+    entries=entries.slice(0,cap);
+    return {forEach(fn){entries.forEach(d=>fn({id:d.id,data:()=>({...d,createdAt:d.createdAtMillis?{toMillis:()=>d.createdAtMillis,toDate:()=>new Date(d.createdAtMillis)}:null})}));}};
    },
-   doc:()=>({get:async()=>{fixture.reads.push("users");return {exists:true,data:()=>({nickname:options.nickname||"TEST",role:options.profileRole||"admin",memberId:"G2-TEST",monthlyPoints:options.points??0,pointsMonth:"2026-10"})};}})
+   doc:id=>({
+    collection:sub=>q(name+"/"+id+"/"+sub),
+    get:async()=>{
+     fixture.reads.push(name);
+     if(name.startsWith("seasonResults/")){
+      if(options.failSnapshot)throw Error("summary unavailable");
+      const value=options.snapshots?.[name.split("/")[1]];
+      return {exists:value!==undefined,data:()=>({points:value})};
+     }
+     return {exists:true,data:()=>({nickname:options.nickname||"TEST",role:options.profileRole||"admin",memberId:"G2-TEST",monthlyPoints:options.points??0,pointsMonth:options.pointsMonth||"2026-10"})};
+    }
+   })
   });
   const auth=()=>({currentUser:{getIdToken:async()=>"test-token"},setPersistence:async()=>{},signInWithCustomToken:async()=>({user:{uid}})});auth.Auth={Persistence:{SESSION:"session"}};
   window.firebase={initializeApp(){},firestore:()=>({collection:q}),auth};
@@ -127,7 +147,7 @@ test("Chromium: slow history does not block returning home or expose privileged 
   await h.page.locator("#nav-home").click();
   assert.ok(await h.page.locator("#monthlyPoints").isVisible());
   await h.page.evaluate(()=>fixture.releaseHistory());
-  await h.page.locator("#history").filter({hasText:"ยังไม่มีรายการคะแนน"}).waitFor({state:"attached"});
+  await h.page.locator("#history").filter({hasText:"ยังไม่มีรายการคะแนนในเดือนที่เลือก"}).waitFor({state:"attached"});
   assert.ok(await h.page.locator("#view-home").isVisible());
   assert.equal(await h.page.locator("#staff").isVisible(),false);
   assert.equal(await h.page.locator("#admin").isVisible(),false);
@@ -147,5 +167,56 @@ test("Chromium: reward QR is generated only on demand and used rewards have no Q
   await h.page.locator("#rewards button").click();
   assert.equal(await h.page.evaluate(()=>fixture.qrs[0].text),"g2reward:available-test");
   assert.equal(await h.page.evaluate(()=>fixture.calls.some(x=>x.name==="memberRedeemReward")),false);
+ }finally{await h.close();}
+});
+
+test("Chromium: previous month shows own snapshot and all pages beyond thirty; backfill follows monthId",async()=>{
+ const history=Array.from({length:61},(_,i)=>({id:String(i).padStart(3,"0"),points:1,monthId:"2026-09",billId:100+i,createdAtMillis:Date.UTC(2026,9,2)}));
+ history.push({id:"other-month",points:999,monthId:"2026-10"},{id:"other-user",points:999,monthId:"2026-09",userId:"U"+"b".repeat(32)});
+ const h=await ui({staff:false,admin:false},{profileRole:"member",points:12,history,snapshots:{"2026-09":72}});
+ try{
+  await h.page.locator("#nav-history").click();
+  await h.page.locator("#historyMonth").fill("2026-09");
+  await h.page.locator("#historyMonth").dispatchEvent("change");
+  await h.page.locator("#historyTotal").filter({hasText:"72 แต้ม"}).waitFor();
+  assert.equal(await h.page.locator("#history .list-row").count(),50);
+  await h.page.locator("#historyMore").click();
+  await h.page.locator("#historyCount").filter({hasText:"61 รายการ"}).waitFor();
+  assert.equal(await h.page.locator("#history .list-row").count(),61);
+  assert.equal(await h.page.locator("#historyMore").isVisible(),false);
+  assert.equal(await h.page.locator("#monthlyPoints").textContent(),"12");
+  assert.ok(await h.page.locator("#historySummaryNote").innerText().then(x=>x.includes("สรุปรอบเดือน")));
+  assert.equal(await h.page.evaluate(()=>fixture.calls.some(x=>!["memberLineLogin","memberSession"].includes(x.name))),false);
+  const queries=await h.page.evaluate(()=>fixture.queries.filter(q=>q.name==="pointTransactions"&&q.filters.some(f=>f.field==="monthId"&&f.value==="2026-09")));
+  assert.ok(queries.length>=2);assert.ok(queries.every(q=>q.filters.some(f=>f.field==="userId"&&f.value==="U"+"a".repeat(32))));
+  assert.equal(queries.at(-1).cursor,"049");
+ }finally{await h.close();}
+});
+test("Chromium: missing monthly summary is explicit and summary failure still allows history",async()=>{
+ for(const failSnapshot of [false,true]){
+  const h=await ui({staff:false,admin:false},{profileRole:"member",failSnapshot,history:[{monthId:"2026-09",points:3}]});
+  try{
+   await h.page.locator("#nav-history").click();await h.page.locator("#historyMonth").fill("2026-09");await h.page.locator("#historyMonth").dispatchEvent("change");
+   await h.page.locator("#historyTotal").filter({hasText:"3 แต้มจากรายการที่บันทึก"}).waitFor();
+   assert.match(await h.page.locator("#historySummaryNote").innerText(),failSnapshot?/อ่านยอดสรุปไม่ได้/:/ไม่รวมยอดยกมา/);
+   await h.page.locator("#historyPrevious").click();
+   await h.page.waitForFunction(()=>document.getElementById("historyMonth").value==="2026-08");
+   await h.page.locator("#history").filter({hasText:"ยังไม่มีรายการคะแนนในเดือนที่เลือก"}).waitFor();
+  }finally{await h.close();}
+ }
+});
+test("Chromium: changing month ignores a stale in-flight history response",async()=>{
+ const h=await ui({staff:false,admin:false},{profileRole:"member",delayHistory:true,history:[{monthId:"2026-09",points:9},{monthId:"2026-10",points:10}],snapshots:{"2026-09":9}});
+ try{
+  await h.page.locator("#nav-history").click();await h.page.waitForFunction(()=>typeof fixture.releaseHistory==="function");
+  await h.page.evaluate(()=>{fixture.releaseOld=fixture.releaseHistory;});
+  await h.page.locator("#historyMonth").fill("2026-09");await h.page.locator("#historyMonth").dispatchEvent("change");
+  await h.page.waitForFunction(()=>fixture.releaseHistory!==fixture.releaseOld);
+  await h.page.evaluate(()=>fixture.releaseHistory());
+  await h.page.locator("#historyTotal").filter({hasText:"9 แต้ม"}).waitFor();
+  await h.page.evaluate(()=>fixture.releaseOld());
+  await h.page.locator("#nav-home").click();await h.page.locator("#nav-history").click();
+  assert.equal(await h.page.locator("#history .list-value").innerText(),"+9");
+  assert.equal(await h.page.locator("#historyMonth").inputValue(),"2026-09");
  }finally{await h.close();}
 });
