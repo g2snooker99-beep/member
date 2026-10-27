@@ -6,23 +6,32 @@ const {chromium}=require("playwright");
 let browser;
 before(async()=>{browser=await chromium.launch({headless:true});});
 after(async()=>{await browser?.close();});
-async function ui(capabilities={staff:true,admin:true}){
+async function ui(capabilities={staff:true,admin:true},options={}){
  const context=await browser.newContext(),page=await context.newPage();
  const html=fs.readFileSync(path.join(__dirname,"../../secure-public/index.html"),"utf8").replace(/<script[\s\S]*?<\/script>/g,"").replace("</html>",'<script src="/app.js"></script></html>');
  const code=fs.readFileSync(path.join(__dirname,"../../secure-public/app.js"),"utf8");
+ const css=fs.readFileSync(path.join(__dirname,"../../secure-public/member.css"),"utf8");
  await context.route("**/*",async route=>{
   const url=new URL(route.request().url());
   if(url.origin!=="https://g2-member-test-api.onrender.com")return route.abort();
-  return route.fulfill({status:200,contentType:url.pathname==="/app.js"?"application/javascript":"text/html",body:url.pathname==="/app.js"?code:html});
+  return route.fulfill({status:200,contentType:url.pathname==="/app.js"?"application/javascript":url.pathname==="/member.css"?"text/css":"text/html",body:url.pathname==="/app.js"?code:url.pathname==="/member.css"?css:html});
  });
- await page.addInitScript(({capabilities})=>{
+ await page.addInitScript(({capabilities,options})=>{
   const uid="U"+"a".repeat(32);
-  window.fixture={calls:[],failManual:false,deny:false,redeemed:false,closed:false};
+  window.fixture={calls:[],failManual:false,deny:false,redeemed:false,closed:false,reads:[],qrs:[]};
   window.G2_MEMBER_CONFIG={firebase:{projectId:"g2-member-test"},liffId:"TEST",backendUrl:location.origin};
   window.liff={init:async()=>{},isLoggedIn:()=>true,getIDToken:()=>"test-only-line-token"};
-  window.QRCode=function(){};
+  window.QRCode=function(el,config){window.fixture.qrs.push(config);const canvas=document.createElement("canvas");canvas.width=config.width;canvas.height=config.height;el.append(canvas);};
   window.Html5QrcodeScanner=function(){};
-  const q=()=>({where(){return this;},orderBy(){return this;},limit(){return this;},get:async()=>({forEach(){}}),doc:()=>({get:async()=>({exists:true,data:()=>({nickname:"TEST",role:"admin",memberId:"TEST",monthlyPoints:0,pointsMonth:"2026-10"})})})});
+  const q=name=>({where(){return this;},orderBy(){return this;},limit(){return this;},
+   get:async()=>{
+    fixture.reads.push(name);
+    if(name==="pointTransactions"&&options.delayHistory)await new Promise(resolve=>{fixture.releaseHistory=resolve;});
+    const entries=name==="monthlyRewards"?(options.rewards||[]):name==="pointTransactions"?(options.history||[]):[];
+    return {forEach(fn){entries.forEach((d,i)=>fn({id:d.id||String(i),data:()=>d}));}};
+   },
+   doc:()=>({get:async()=>{fixture.reads.push("users");return {exists:true,data:()=>({nickname:options.nickname||"TEST",role:options.profileRole||"admin",memberId:"G2-TEST",monthlyPoints:options.points??0,pointsMonth:"2026-10"})};}})
+  });
   const auth=()=>({currentUser:{getIdToken:async()=>"test-token"},setPersistence:async()=>{},signInWithCustomToken:async()=>({user:{uid}})});auth.Auth={Persistence:{SESSION:"session"}};
   window.firebase={initializeApp(){},firestore:()=>({collection:q}),auth};
   window.fetch=async(url,request)=>{
@@ -37,7 +46,7 @@ async function ui(capabilities={staff:true,admin:true}){
    if(name==="memberRedeemReward"){result={duplicate:f.redeemed,type:"discount10",billRef:data.billRef};f.redeemed=true;}
    return {ok:true,json:async()=>({data:result})};
   };
- },{capabilities});
+ },{capabilities,options});
  await page.goto("https://g2-member-test-api.onrender.com/");
  await page.locator("#status").filter({hasText:"เข้าสู่ระบบแล้ว"}).waitFor();
  return {page,close:()=>context.close()};
@@ -84,5 +93,59 @@ test("Chromium: duplicate reward warns staff against a second discount or shirt"
   await h.page.locator("#rewardId").fill("TEST-ONLY");await h.page.locator("#billRef").fill("TEST-BILL");
   await h.page.locator("#redeem").click();await h.page.locator("#status").filter({hasText:"บันทึกใช้ส่วนลดแล้ว"}).waitFor();
   await h.page.locator("#redeem").click();await h.page.locator("#status").filter({hasText:"ห้ามส่งมอบเสื้อหรือให้ส่วนลดซ้ำ"}).waitFor();
+ }finally{await h.close();}
+});
+
+test("Chromium: customer home loads points before details; layouts fit 320/390/768px",async()=>{
+ const h=await ui({staff:false,admin:false},{profileRole:"member",points:12,nickname:"สมาชิกชื่อยาวสำหรับทดสอบการแสดงผลบนมือถือ"});
+ try{
+  assert.equal(await h.page.locator("#monthlyPoints").innerText(),"12");
+  assert.deepEqual(await h.page.evaluate(()=>fixture.reads),["users"]);
+  assert.equal(await h.page.evaluate(()=>fixture.qrs.length),0);
+  for(const width of [320,390,768]){
+   await h.page.setViewportSize({width,height:844});
+   assert.equal(await h.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,"overflow at "+width);
+   assert.equal(await h.page.locator("#memberNav button").count(),5);
+   assert.ok(await h.page.locator("#showCard").isVisible());
+   for(const button of await h.page.locator("#memberNav button").all()){const b=await button.boundingBox();assert.ok(b.height>=44);}
+  }
+  await h.page.setViewportSize({width:390,height:844});
+  const artifacts=path.join(__dirname,"artifacts");fs.mkdirSync(artifacts,{recursive:true});
+  await h.page.screenshot({path:path.join(artifacts,"customer-home-390.png"),fullPage:true});
+  await h.page.locator("#nav-qr").click();
+  await h.page.locator("#view-qr").waitFor({state:"visible"});
+  const qr=await h.page.evaluate(()=>fixture.qrs[0]);assert.equal(qr.text,"U"+"a".repeat(32));assert.equal(qr.width,224);
+  assert.equal(await h.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ }finally{await h.close();}
+});
+test("Chromium: slow history does not block returning home or expose privileged menus",async()=>{
+ const h=await ui({staff:false,admin:false},{profileRole:"member",points:12,delayHistory:true});
+ try{
+  await h.page.locator("#nav-history").click();
+  await h.page.waitForFunction(()=>typeof fixture.releaseHistory==="function");
+  assert.equal(await h.page.locator("#history").innerText(),"กำลังโหลดประวัติคะแนน…");
+  await h.page.locator("#nav-home").click();
+  assert.ok(await h.page.locator("#monthlyPoints").isVisible());
+  await h.page.evaluate(()=>fixture.releaseHistory());
+  await h.page.locator("#history").filter({hasText:"ยังไม่มีรายการคะแนน"}).waitFor({state:"attached"});
+  assert.ok(await h.page.locator("#view-home").isVisible());
+  assert.equal(await h.page.locator("#staff").isVisible(),false);
+  assert.equal(await h.page.locator("#admin").isVisible(),false);
+ }finally{await h.close();}
+});
+test("Chromium: reward QR is generated only on demand and used rewards have no QR button",async()=>{
+ const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok",year:"numeric",month:"numeric"}).formatToParts(new Date());
+ const y=Number(parts.find(p=>p.type==="year").value),m=Number(parts.find(p=>p.type==="month").value);
+ const previous=new Date(Date.UTC(y,m-2,1)).toISOString().slice(0,7);
+ const h=await ui({staff:false,admin:false},{profileRole:"member",rewards:[{id:"available-test",monthKey:previous,type:"discount10",status:"available"},{id:"used-test",monthKey:previous,type:"discount10",status:"used"}]});
+ try{
+  await h.page.locator("#nav-rewards").click();
+  await h.page.locator("#rewards .reward-card").first().waitFor();
+  assert.equal(await h.page.locator("#rewards .reward-card").count(),2);
+  assert.equal(await h.page.locator("#rewards button").count(),1);
+  assert.equal(await h.page.evaluate(()=>fixture.qrs.length),0);
+  await h.page.locator("#rewards button").click();
+  assert.equal(await h.page.evaluate(()=>fixture.qrs[0].text),"g2reward:available-test");
+  assert.equal(await h.page.evaluate(()=>fixture.calls.some(x=>x.name==="memberRedeemReward")),false);
  }finally{await h.close();}
 });

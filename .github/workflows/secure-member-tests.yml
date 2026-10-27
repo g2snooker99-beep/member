@@ -44,3 +44,10 @@ jobs:
       - name: Real Chromium staff and admin UI acceptance
         working-directory: functions
         run: npm run test:browser
+      - name: Save customer mobile UI preview
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: customer-mobile-ui
+          path: functions/browser-test/artifacts/
+          if-no-files-found: ignore

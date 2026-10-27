@@ -1,11 +1,53 @@
-<!doctype html><html lang="th"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>G2 Snooker Member</title>
-<style>body{font:17px system-ui;background:#102c24;color:#fff;max-width:720px;margin:auto;padding:24px}section{background:#1b3c32;padding:20px;margin:16px 0;border-radius:12px}input,button{font:inherit;padding:12px;margin:5px;max-width:90%}button{cursor:pointer}pre{white-space:pre-wrap}nav a{color:#f3cf70;margin:8px}</style>
-<h1>G2 Snooker Member</h1><p id="status" role="status">กำลังยืนยันตัวตน LINE…</p>
-<section id="registration" hidden><h2>สมัครสมาชิก</h2><input id="nickname" maxlength="60" placeholder="ชื่อเล่น"><input id="phone" inputmode="tel" placeholder="เบอร์โทร"><button id="register">สมัครสมาชิก</button></section>
-<section id="card" hidden><h2 id="name"></h2><p id="memberId"></p><p id="balance"></p><div id="qr"></div><h3>ประวัติคะแนนล่าสุด</h3><div id="history"></div><h3>สิทธิ์ประจำเดือน</h3><div id="rewards"></div></section>
-<section id="staff" hidden><h2>เพิ่มแต้มสมาชิก</h2><button id="scan">สแกน QR สมาชิก / รางวัล</button><div id="reader"></div><input id="target" placeholder="LINE user ID จาก QR สมาชิก"><select id="points"><option>1</option><option>2</option><option>3</option></select><button id="add">บันทึกแต้ม</button><button id="retry">ส่งรายการค้างเดิม</button><p>หากส่งไม่สำเร็จ ให้กดซ้ำเพื่อส่งรายการเดิม</p><h3>ใช้สิทธิ์รางวัล</h3><input id="rewardId" placeholder="รหัสสิทธิ์จากสมาชิก"><input id="billRef" maxlength="80" placeholder="เลขบิลสำหรับส่วนลด 10%"><button id="redeem">ยืนยันใช้สิทธิ์</button></section>
-<section id="admin" hidden><h2>จัดการรอบเดือน</h2><input id="month" type="month"><button id="open">เปิดเดือนปัจจุบัน</button><button id="preview">ตรวจสรุปเดือน</button><div id="monthPreview" aria-live="polite"></div><button id="close">ปิดเดือนที่ผ่านมา</button><p>การปิดเดือนจะล็อกคะแนน สรุปรางวัล และเก็บประวัติ</p><h3>สิทธิ์พนักงาน</h3><input id="staffId" placeholder="LINE user ID"><select id="staffRole"><option value="staff">พนักงาน</option><option value="member">สมาชิก</option></select><label><input id="staffActive" type="checkbox" checked>เปิดใช้งาน</label><button id="setStaff">บันทึกสิทธิ์</button></section>
-<section><h2>อันดับเดือนนี้</h2><div id="leaderboard"></div></section><section><h2>ผลอันดับเดือนที่ผ่านมา</h2><div id="results"></div></section>
-<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-<script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script><script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-auth-compat.js"></script><script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore-compat.js"></script><script src="https://www.gstatic.com/firebasejs/11.0.2/firebase-functions-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script><script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script><script src="config.js"></script><script src="app.js"></script></html>
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#101916">
+<title>สมาชิก G2 Snooker</title>
+<link rel="stylesheet" href="member.css?v=20261027">
+<script defer src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/11.0.2/firebase-auth-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/11.0.2/firebase-functions-compat.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script defer src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script defer src="config.js"></script>
+<script defer src="app.js?v=20261027"></script>
+</head>
+<body>
+<div class="app-shell">
+<header class="brand-header"><a class="brand" href="./index.html" aria-label="G2 Snooker หน้าหลัก"><span class="brand-mark">G2</span><span><strong>G2 SNOOKER</strong><small>MEMBER CLUB · BIG C UBON</small></span></a><span class="club-label">สมาชิก</span></header>
+<div class="status-bar"><span class="status-dot" aria-hidden="true"></span><p id="status" role="status" aria-live="polite">กำลังยืนยันตัวตน LINE…</p><button id="reload" class="text-button" type="button">ลองใหม่</button></div>
+<section id="registration" class="surface registration" hidden>
+<p class="eyebrow">ยินดีต้อนรับสู่ G2</p><h1>เป็นสมาชิก<br>แล้วเจอกันที่โต๊ะ</h1><p class="muted">ใช้บัญชี LINE นี้สำหรับสะสมแต้มและรับสิทธิ์ของคุณ</p>
+<label for="nickname">ชื่อเล่นที่ใช้ในร้าน</label><input id="nickname" maxlength="60" placeholder="ชื่อเล่น" autocomplete="nickname">
+<label for="phone">เบอร์โทรศัพท์</label><input id="phone" inputmode="tel" type="tel" maxlength="10" placeholder="0xxxxxxxxx" autocomplete="tel">
+<button id="register" class="primary" type="button">สมัครสมาชิก G2</button>
+</section>
+<main id="card" hidden>
+<div class="profile-heading"><span class="member-avatar" id="initials" aria-hidden="true">G2</span><div class="profile-copy"><p class="eyebrow">สวัสดี สมาชิก G2</p><h1 id="name">—</h1><p id="memberId" class="muted">—</p></div><span id="accountState" class="badge">กำลังตรวจสอบ</span></div>
+<div id="view-home" class="member-view">
+<section class="points-card" aria-label="คะแนนสมาชิก"><div class="points-card-top"><span>คะแนนสะสมของคุณ</span><span class="member-emblem" aria-hidden="true">✦</span></div><div class="score-line"><strong id="monthlyPoints">—</strong><span>แต้ม</span></div><p id="pointsMonth" class="points-month">กำลังตรวจรอบเดือน</p><p id="balance" class="sr-only"></p><div class="points-card-footer"><span>คะแนนตามรายการที่บันทึกแล้ว</span><button id="refresh" class="text-button" type="button">↻ อัปเดตคะแนน</button></div></section>
+<div class="quick-actions"><button id="showCard" class="primary" type="button"><span aria-hidden="true">▦</span> แสดงบัตรสมาชิก</button><button id="showRewards" class="secondary" type="button"><span aria-hidden="true">✧</span> ดูสิทธิ์ของฉัน</button></div>
+<section id="progressCard" class="surface progress-card" hidden><div class="section-heading"><h2>เป้าหมาย 15 แต้ม</h2><span id="progressText" class="gold"></span></div><progress id="pointsProgress" max="15" value="0" aria-label="ความคืบหน้าสู่ 15 แต้ม"></progress><p class="muted">ผู้ได้อย่างน้อย 15 แต้มและไม่ติด Top 3 รับสิทธิ์ลดค่าโต๊ะ 10% หนึ่งบิลในเดือนถัดไป ตรวจสิทธิ์ที่ออกแล้วได้ในเมนูสิทธิ์</p></section>
+<section class="surface how-to"><span class="section-icon" aria-hidden="true">▦</span><div><h2>พร้อมเล่น พร้อมสะสมแต้ม</h2><p class="muted">เปิดบัตรสมาชิกให้พนักงานสแกน หากแต้มยังไม่อัปเดต ให้กดอัปเดตคะแนนหลังบันทึกรายการ</p></div></section>
+</div>
+<div id="view-qr" class="member-view" hidden><div class="page-heading"><p class="eyebrow">MEMBER CARD</p><h2>บัตรสมาชิกของคุณ</h2><p class="muted">แสดง QR นี้ให้พนักงานสแกน</p></div><section class="surface qr-card"><div class="qr-frame"><div id="qr"></div></div><p id="qrMemberId" class="qr-member-id"></p><p class="muted">ใช้บัตรของคุณเองทุกครั้งที่รับแต้ม</p></section></div>
+<div id="view-rewards" class="member-view" hidden><div class="page-heading"><p class="eyebrow">YOUR REWARDS</p><h2>สิทธิ์ของฉัน</h2><p class="muted">ตรวจสถานะและแสดง QR ให้พนักงานก่อนใช้สิทธิ์</p></div><div id="rewards" class="item-list" aria-live="polite"></div></div>
+<div id="view-history" class="member-view" hidden><div class="page-heading"><p class="eyebrow">POINTS HISTORY</p><h2>ประวัติคะแนน</h2><p class="muted">รายการล่าสุดของคุณ สูงสุด 30 รายการ</p></div><div id="history" class="surface item-list" aria-live="polite"></div></div>
+<div id="view-board" class="member-view" hidden><div class="page-heading"><p class="eyebrow">G2 RANKING</p><h2>อันดับสมาชิก</h2><p class="muted">อันดับตามคะแนนที่ระบบบันทึก</p></div><section class="surface"><h3>อันดับเดือนนี้</h3><div id="leaderboard" class="item-list" aria-live="polite"></div></section><details class="surface"><summary>ผลอันดับเดือนที่ผ่านมา</summary><div id="results" class="item-list"></div></details></div>
+</main>
+<section id="staff" class="surface operator-panel" hidden><p class="eyebrow">สำหรับพนักงานที่ได้รับสิทธิ์</p><h2>เพิ่มแต้มสมาชิก</h2><button id="scan" class="primary" type="button">สแกน QR สมาชิก / รางวัล</button><div id="reader"></div><label for="target">LINE user ID จาก QR สมาชิก</label><input id="target" placeholder="LINE user ID จาก QR สมาชิก"><label for="points">จำนวนแต้ม</label><select id="points"><option>1</option><option>2</option><option>3</option></select><div class="button-row"><button id="add" class="primary" type="button">บันทึกแต้ม</button><button id="retry" class="secondary" type="button">ส่งรายการค้างเดิม</button></div><p class="muted">หากส่งไม่สำเร็จ ให้กดซ้ำเพื่อส่งรายการเดิม</p><hr><h3>ใช้สิทธิ์รางวัล</h3><label for="rewardId">รหัสสิทธิ์จากสมาชิก</label><input id="rewardId" placeholder="รหัสสิทธิ์จากสมาชิก"><label for="billRef">เลขบิลสำหรับส่วนลด 10%</label><input id="billRef" maxlength="80" placeholder="เลขบิลสำหรับส่วนลด 10%"><button id="redeem" class="primary" type="button">ยืนยันใช้สิทธิ์</button></section>
+<section id="admin" class="surface operator-panel" hidden><p class="eyebrow">สำหรับผู้ดูแลที่ได้รับสิทธิ์</p><h2>จัดการรอบเดือน</h2><label for="month">รอบเดือน</label><input id="month" type="month"><div class="button-row"><button id="open" class="secondary" type="button">เปิดเดือนปัจจุบัน</button><button id="preview" class="secondary" type="button">ตรวจสรุปเดือน</button></div><div id="monthPreview" aria-live="polite"></div><button id="close" class="danger" type="button">ปิดเดือนที่ผ่านมา</button><p class="muted">การปิดเดือนจะล็อกคะแนน สรุปรางวัล และเก็บประวัติ</p><hr><h3>สิทธิ์พนักงาน</h3><label for="staffId">LINE user ID</label><input id="staffId" placeholder="LINE user ID"><label for="staffRole">บทบาท</label><select id="staffRole"><option value="staff">พนักงาน</option><option value="member">สมาชิก</option></select><label class="checkbox-label"><input id="staffActive" type="checkbox" checked> เปิดใช้งาน</label><button id="setStaff" class="secondary" type="button">บันทึกสิทธิ์</button></section>
+<footer class="app-footer">G2 SNOOKER · BIG C UBON</footer>
+</div>
+<nav id="memberNav" class="bottom-nav" aria-label="เมนูสมาชิก" hidden>
+<button id="nav-home" type="button" aria-current="page"><span aria-hidden="true">⌂</span>หน้าหลัก</button>
+<button id="nav-qr" type="button"><span aria-hidden="true">▦</span>บัตรสมาชิก</button>
+<button id="nav-rewards" type="button"><span aria-hidden="true">✧</span>สิทธิ์</button>
+<button id="nav-history" type="button"><span aria-hidden="true">◷</span>ประวัติ</button>
+<button id="nav-board" type="button"><span aria-hidden="true">♜</span>อันดับ</button>
+</nav>
+</body></html>
