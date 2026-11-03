@@ -29,11 +29,20 @@ exports.memberPreviewMonth=callable((s,u,d)=>s.previewMonth(u,d.month),false);
 exports.memberCloseMonth=callable((s,u,d)=>s.closeMonth(u,d.month));
 exports.memberRedeemReward=callable((s,u,d)=>s.redeem(u,d));
 exports.memberSetStaff=callable((s,u,d)=>s.setStaff(u,d));
-exports.memberScheduledClose=onSchedule({serviceAccount:runtimeServiceAccount,region:"asia-southeast1",schedule:"5 0 1 * *",timeZone:"Asia/Bangkok",timeoutSeconds:540,retryCount:3},async()=>{
-  if(mutationGate.value()!=="true")return {state:"disabled"};
-  const current=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok",year:"numeric",month:"2-digit"}).format(new Date()).slice(0,7);
-  const [year,month]=current.split("-").map(Number);
-  const previous=new Date(Date.UTC(year,month-2,15)).toISOString().slice(0,7);
-  const s=buildService({db:admin.firestore(),auth:admin.auth(),FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,channelId:channel.value(),ownerUid:owner.value(),verifyLine});
-  return s.closeMonth(closeAdmin.value(),previous);
+// Keep the existing scheduled resource: close + open, checked hourly for recovery.
+exports.memberScheduledClose=onSchedule({
+ serviceAccount:runtimeServiceAccount,region:"asia-southeast1",
+ schedule:"5 * * * *",timeZone:"Asia/Bangkok",timeoutSeconds:540,
+ maxInstances:1,concurrency:1,retryCount:3,minBackoffSeconds:60,maxBackoffSeconds:300
+},async()=>{
+ const {runMonthCycle}=require("./month-cycle");
+ const s=buildService({db:admin.firestore(),auth:admin.auth(),FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,channelId:channel.value(),ownerUid:owner.value(),verifyLine});
+ try{
+  const result=await runMonthCycle({db:admin.firestore(),service:s,ownerUid:closeAdmin.value(),enabled:mutationGate.value()});
+  require("firebase-functions/logger").info("member_month_cycle",{state:result.state,month:result.month||"",previous:result.previous||""});
+  return result;
+ }catch(e){
+  require("firebase-functions/logger").error("member_month_cycle_failed",{code:e.code||"unavailable",message:e.message});
+  throw e;
+ }
 });

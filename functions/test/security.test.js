@@ -302,3 +302,74 @@ test("club read rechecks revoked membership before returning data",async()=>{
  }},U,{view:"board",month:"2026-10"}),{code:"permission-denied"});
  assert.equal(calls,2);
 });
+
+async function cycle(options={}){
+ return require("../month-cycle").runMonthCycle({db,service,ownerUid:A,enabled:"true",now:()=>clock,...options});
+}
+test("automatic cycle archives old scores/rewards before opening next month; repeats preserve new points and used rewards",async()=>{
+ await seed();
+ for(const [id,points] of [[U,16],[OTHER,25],["U"+"e".repeat(32),20],["U"+"f".repeat(32),18]]){
+  await db.collection("users").doc(id).set({role:"member",isActive:true,userId:id,nickname:id.slice(0,4),memberId:id,monthlyPoints:points,pointsMonth:"2026-10"});
+ }
+ clock=new Date("2026-10-31T17:05:00Z");
+ assert.deepEqual(await cycle(),{state:"opened",month:"2026-11",previous:"2026-10"});
+ assert.equal((await db.doc("posAwardMonths/2026-10").get()).data().state,"closed");
+ assert.equal((await db.doc("posAwardMonths/2026-11").get()).data().state,"open");
+ assert.equal((await db.doc("seasonResults/2026-10/members/"+U).get()).data().points,16);
+ assert.equal((await db.doc("users/"+U).get()).data().monthlyPoints,0);
+ assert.equal((await db.collection("monthlyRewards").get()).size,4);
+ await db.doc("users/"+U).update({monthlyPoints:8,pointsMonth:"2026-11"});
+ const reward=db.doc("monthlyRewards/2026-10_"+U+"_discount10");
+ await reward.update({status:"used",billRef:"TEST-USED"});
+ let writes=0;
+ const result=await cycle({service:{identity:service.identity,closeMonth:()=>{writes++;throw Error("must not close");},openMonth:()=>{writes++;throw Error("must not open");}}});
+ assert.equal(result.state,"ready");assert.equal(writes,0);
+ assert.equal((await db.doc("users/"+U).get()).data().monthlyPoints,8);
+ assert.equal((await reward.get()).data().status,"used");
+ assert.equal((await db.collection("monthlyRewards").get()).size,4);
+});
+test("automatic cycle resumes partial close and keeps a member's newer-month points",async()=>{
+ await seed();clock=new Date("2026-11-01T00:00:00Z");
+ await db.doc("posAwardMonths/2026-10").update({state:"closing"});
+ await db.doc("seasonResults/2026-10/members/"+U).set({userId:U,nickname:"Archived",memberId:"TEST",points:16,eligible:true,joinedAtMillis:0});
+ await db.doc("users/"+U).update({monthlyPoints:8,pointsMonth:"2026-11"});
+ assert.equal((await cycle()).state,"opened");
+ assert.equal((await db.doc("users/"+U).get()).data().monthlyPoints,8);
+ assert.equal((await db.doc("seasonResults/2026-10/members/"+U).get()).data().points,16);
+ assert.equal((await db.doc("posAwardMonths/2026-11").get()).data().state,"open");
+});
+test("automatic cycle failure never opens a month, never guesses missing history or reopens a closed gate",async()=>{
+ await seed();clock=new Date("2026-11-01T00:00:00Z");
+ let opens=0;
+ await assert.rejects(cycle({service:{identity:service.identity,closeMonth:async()=>{throw Error("temporary close failure");},openMonth:async()=>{opens++;}}}),/temporary close failure/);
+ assert.equal(opens,0);assert.equal((await db.doc("posAwardMonths/2026-11").get()).exists,false);
+ await db.doc("posAwardMonths/2026-10").update({state:"closed"});
+ await assert.rejects(cycle(),{code:"failed-precondition"}); // Missing completed archive
+ assert.equal((await db.doc("posAwardMonths/2026-11").get()).exists,false);
+ await db.doc("seasonResults/2026-10").set({monthId:"2026-10",top3:[]});
+ await db.doc("posAwardMonths/2026-11").set({state:"closed"});
+ await assert.rejects(cycle(),{code:"failed-precondition"});
+ assert.equal((await db.doc("posAwardMonths/2026-11").get()).data().state,"closed");
+ await db.doc("posAwardMonths/2026-10").delete();
+ await assert.rejects(cycle(),{code:"failed-precondition"});
+});
+test("automatic cycle requires live pinned-owner authority and honors revocation before opening",async()=>{
+ await seed();clock=new Date("2026-11-01T00:00:00Z");
+ await assert.rejects(cycle({ownerUid:OTHER}),{code:"permission-denied"});
+ await assert.rejects(cycle({ownerUid:S}),{code:"permission-denied"});
+ const wrapped={identity:service.identity,closeMonth:async(...args)=>{
+  await service.closeMonth(...args);
+  await db.doc("memberStaffAccess/"+A).update({enabled:false});
+ },openMonth:service.openMonth};
+ await assert.rejects(cycle({service:wrapped}),{code:"permission-denied"});
+ assert.equal((await db.doc("posAwardMonths/2026-11").get()).exists,false);
+});
+test("overlapping cycle deliveries remain idempotent; retry reaches ready without duplicate rewards",async()=>{
+ await seed();clock=new Date("2026-11-01T00:00:00Z");
+ await db.doc("users/"+U).update({monthlyPoints:20});
+ const runs=await Promise.allSettled([cycle(),cycle()]);
+ assert.ok(runs.some(r=>r.status==="fulfilled"));
+ assert.equal((await cycle()).state,"ready");
+ assert.equal((await db.doc("seasonResults/2026-10/members/"+U).get()).data().points,20);
+ assert.equal((await db.collection("monthlyRewards").get()).size,1);
+});

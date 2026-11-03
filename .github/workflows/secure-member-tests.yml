@@ -30,7 +30,9 @@ jobs:
           distribution: temurin
           java-version: '21'
       - name: Validate scoped club deployment script
-        run: bash -n scripts/deploy-sport-club.sh
+        run: |
+          bash -n scripts/deploy-sport-club.sh
+          bash -n scripts/deploy-month-cycle.sh
       - name: Install dependencies
         working-directory: functions
         run: npm install --no-audit --no-fund
