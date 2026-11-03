@@ -33,6 +33,7 @@ jobs:
         run: |
           bash -n scripts/deploy-sport-club.sh
           bash -n scripts/deploy-month-cycle.sh
+          bash -n scripts/deploy-login-recovery.sh
       - name: Install dependencies
         working-directory: functions
         run: npm install --no-audit --no-fund

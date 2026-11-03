@@ -12,8 +12,9 @@ const owner=defineString("MEMBER_OWNER_LINE_UID");
 const mutationGate=defineString("MEMBER_MUTATIONS_ENABLED",{default:"false"});
 const closeAdmin=defineString("MEMBER_MONTH_CLOSE_ADMIN_UID",{default:""});
 async function verifyLine(idToken,clientId){
-  const r=await fetch("https://api.line.me/oauth2/v2.1/verify",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({id_token:idToken,client_id:clientId}),signal:AbortSignal.timeout(5000)});
-  if(!r.ok)throw new HttpsError("unauthenticated","LINE rejected login");return r.json();
+ return require("./verify-line").verifyLineToken(idToken,clientId,{
+  ErrorType:HttpsError,log:details=>require("firebase-functions/logger").warn("member_line_verification",details)
+ });
 }
 function callable(fn,write=true){return onCall({serviceAccount:runtimeServiceAccount,region:"asia-southeast1",timeoutSeconds:540,maxInstances:5},async r=>{
   try{if(write)require("./release-controls").requireMutationGate(mutationGate.value());return await fn(buildService({db:admin.firestore(),auth:admin.auth(),FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,channelId:channel.value(),ownerUid:owner.value(),verifyLine}),r.auth?.uid,r.data||{});}

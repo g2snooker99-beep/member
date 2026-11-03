@@ -4,6 +4,7 @@ const $=id=>document.getElementById(id);
 let db,call,uid,pending=null,scanner=null,busy=false,currentView="home",currentActive=false,profileVersion=0;
 let loadedViews={},loadingViews={},memberProfile=null,historyVersion=0,historyState=null;
 let clubVersion=0,clubBoards=new Map(),clubStats=null,statsTask=null,linePhoto="",boardRowsShown=20,boardGeneration=0;
+let loginFailed=false,liffInitialized=false;
 const status=s=>{$("status").textContent=s;};
 const labels={top1:"เสื้อ Limited อันดับ 1",top2:"เสื้อ Limited อันดับ 2",top3:"เสื้อ Limited อันดับ 3",discount10:"ส่วนลด 10% ใช้ได้หนึ่งบิล"};
 const monthAt=d=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok",year:"numeric",month:"2-digit"}).format(d).slice(0,7);
@@ -34,7 +35,8 @@ async function navigate(view){
 for(const view of views)$("nav-"+view).onclick=()=>navigate(view);
 $("showCard").onclick=()=>navigate("qr");$("showRewards").onclick=()=>navigate("rewards");
 $("refresh").onclick=()=>action(async()=>{await refresh();return "อัปเดตคะแนนล่าสุดแล้ว";});
-$("reload").onclick=()=>window.location.reload();
+$("reload").onclick=()=>loginFailed?restartLineLogin():window.location.reload();
+$("lineReconnect").onclick=restartLineLogin;
 async function refresh(){
  $("staff").hidden=true;$("admin").hidden=true;
  const [session,s]=await Promise.all([call("memberSession",{}),db.collection("users").doc(uid).get()]);
@@ -43,12 +45,15 @@ async function refresh(){
  profileVersion++;historyVersion++;clubVersion++;boardGeneration++;historyState=null;loadedViews={};loadingViews={};clubBoards=new Map();clubStats=null;statsTask=null;
  if(!session.registered)return;
  if(!s.exists)throw Error("ไม่พบข้อมูลสมาชิก กรุณาติดต่อแอดมิน");
- const p=s.data();memberProfile=p;const points=Number.isFinite(p.monthlyPoints)?p.monthlyPoints:0;
+ const p=s.data();memberProfile=p;const storedPoints=Number.isFinite(p.monthlyPoints)?p.monthlyPoints:0,currentMonth=monthAt(new Date());
+ const points=p.pointsMonth===currentMonth?storedPoints:0;
+ $("oldBalanceNote").hidden=p.pointsMonth===currentMonth||storedPoints===0;
+ $("oldBalanceNote").textContent="ยอดเดิม "+storedPoints+" แต้ม รอบ "+monthLabel(p.pointsMonth)+" · ไม่รวมในแต้มเดือนปัจจุบัน";
  $("name").textContent=p.nickname||"สมาชิก G2";$("memberId").textContent=p.memberId||"รอตรวจสอบรหัส";
  $("initials").textContent=Array.from(p.nickname||"G2").slice(0,1).join("");
  applyMemberPhoto(linePhoto||p.pictureUrl);
- $("monthlyPoints").textContent=String(points);$("pointsMonth").textContent="รอบเดือน "+monthLabel(p.pointsMonth);
- $("balance").textContent=`คะแนนเดือน ${p.pointsMonth||"รอตรวจสอบ"}: ${points}`;
+ $("monthlyPoints").textContent=String(points);$("pointsMonth").textContent="รอบเดือน "+monthLabel(currentMonth);
+ $("balance").textContent=`คะแนนเดือน ${currentMonth}: ${points}`;
  $("accountState").textContent=session.active?"ใช้งานอยู่":"บัญชีปิดใช้งาน";$("qrMemberId").textContent=p.memberId||"";
  $("progressCard").hidden=!session.active||p.role!=="member";$("pointsProgress").value=Math.max(0,Math.min(15,points));
  $("progressText").textContent=points>=15?"ถึง 15 แต้มแล้ว":"อีก "+Math.max(0,15-points)+" แต้ม";
@@ -225,14 +230,14 @@ function avatar(parent,p){
 async function clubBoard(month){
  if(clubBoards.has(month))return clubBoards.get(month);
  const version=clubVersion,map=clubBoards;
- const task=call("memberClubData",{view:"board",month});
+ const task=readDeadline(call("memberClubData",{view:"board",month}));
  map.set(month,task);
  try{const result=await task;if(version===clubVersion)map.set(month,Promise.resolve(result));return result;}
  catch(e){if(version===clubVersion)map.delete(month);throw e;}
 }
 async function getClubStats(){
  if(clubStats)return clubStats;if(statsTask)return statsTask;
- const version=clubVersion,task=call("memberClubData",{view:"stats"});statsTask=task;
+ const version=clubVersion,task=readDeadline(call("memberClubData",{view:"stats"}));statsTask=task;
  try{const value=await task;if(version===clubVersion)clubStats=value;return value;}
  finally{if(version===clubVersion)statsTask=null;}
 }
@@ -262,7 +267,7 @@ async function loadHomeClub(){
  const version=clubVersion;
  $("homeRank").textContent="กำลังตรวจอันดับ…";$("allStatsNote").textContent="กำลังอ่านประวัติที่บันทึกในระบบ…";
  await Promise.allSettled([
-  clubBoard(monthAt(new Date())).then(data=>{if(version===clubVersion)renderHomeRank(data);},()=>{
+  (memberProfile?.role==="member"?clubBoard(monthAt(new Date())):Promise.resolve(null)).then(data=>{if(version===clubVersion){if(data)renderHomeRank(data);else renderOperatorRank();}},()=>{
    if(version===clubVersion){$("homeRank").textContent="ยังโหลดอันดับไม่ได้";$("homeRankNote").textContent="กดอัปเดตเพื่อลองใหม่";}
   }),
   getClubStats().then(data=>{
@@ -362,6 +367,53 @@ async function renderMonthlyHistory(){
  empty("historyMonths","สรุปจากรายการที่บันทึก อาจต่างจากยอดปิดรอบที่มียอดยกมา");
 }
 
+
+function readDeadline(task,ms=20000){
+ let timer;
+ return Promise.race([task,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error("อ่านข้อมูลนานเกินไป กรุณากดอัปเดตเพื่อลองใหม่")),ms);})]).finally(()=>clearTimeout(timer));
+}
+function renderOperatorRank(){
+ $("homeRank").textContent="บัญชีพนักงาน / ผู้ดูแล";
+ $("homeRankScope").textContent="ไม่ร่วมอันดับสะสมแต้มของสมาชิก";
+ $("gapBefore").textContent="—";$("gapAfter").textContent="—";$("rankTrack").replaceChildren();
+ $("homeRankNote").textContent="ค้นหาแต้มลูกค้าได้จากหน้าสมาชิกใน POS";
+}
+function cleanLoginCallback(){
+ // Only after LIFF has consumed OAuth callbacks. Keep app view and any unrelated parameters.
+ if(typeof URL==="undefined"||!window.history?.replaceState||!location.href)return;
+ const url=new URL(location.href);
+ for(const key of ["code","state","liffClientId","liffRedirectUri","error","error_description"])url.searchParams.delete(key);
+ window.history.replaceState(null,"",url.pathname+url.search+url.hash);
+}
+function requestedCardView(){
+ if(typeof URLSearchParams!=="undefined"&&new URLSearchParams(location.search||"").get("view")==="qr")currentView="qr";
+}
+function authFailure(error){
+ const code=error?.code?.replace(/^functions\//,""),message=error?.message||"";
+ return code==="unauthenticated"||["LINE rejected login","Invalid LINE identity","LINE_SESSION_EXPIRED","LINE_LOGIN_REJECTED"].includes(message);
+}
+function showLoginFailure(error){
+ loginFailed=true;currentActive=false;uid=null;profileVersion++;clubVersion++;
+ for(const id of ["card","memberNav","registration","staff","admin"])$(id).hidden=true;
+ $("loginRecovery").hidden=false;$("reload").textContent="เข้า LINE ใหม่";
+ const message=error?.message==="LINE_CHANNEL_MISMATCH"?"การตั้งค่า LINE ไม่ตรงกัน กรุณาแจ้งเจ้าของร้าน":
+ error?.message==="LINE_VERIFY_UNAVAILABLE"?"เชื่อมต่อ LINE ชั่วคราวไม่ได้ กรุณาลองใหม่":
+ "ยืนยันตัวตน LINE ไม่สำเร็จ กรุณาเปิดผ่าน LINE ใหม่";
+ $("loginRecoveryText").textContent=message;status(message);
+}
+async function restartLineLogin(){
+ const c=window.G2_MEMBER_CONFIG;if(!c?.liffId)return;
+ const inClient=liffInitialized&&typeof liff.isInClient==="function"&&liff.isInClient();
+ if(liffInitialized&&!inClient){
+  try{if(liff.isLoggedIn())liff.logout();}catch{}
+  // Do not replay a callback URL containing an old authorization code.
+  const redirectUri=location.origin+"/index.html"+(currentView==="qr"?"?view=qr":"");
+  sessionStorage.setItem("g2LineLoginAttempt",String(Date.now()));liff.login({redirectUri});return;
+ }
+ const url="https://liff.line.me/"+encodeURIComponent(c.liffId)+(currentView==="qr"?"?view=qr":"");
+ window.location.assign(url);
+}
+
 async function action(fn){
   if(busy)return;busy=true;
   const buttons=Array.from(document.querySelectorAll("button"));buttons.forEach(b=>b.disabled=true);
@@ -423,13 +475,19 @@ $("setStaff").onclick=()=>action(async()=>{await call("memberSetStaff",{userId:$
     if(c.firebase.projectId!=="g2-member-test"||c.backendUrl!==location.origin)throw Error("Invalid test backend");
     call=async(n,d)=>{const headers={"Content-Type":"application/json"};const user=firebase.auth().currentUser;if(user)headers.Authorization="Bearer "+await user.getIdToken();const response=await fetch(c.backendUrl+"/api/"+n,{method:"POST",headers,body:JSON.stringify(d)});const result=await response.json();if(!response.ok){const e=Error(result.message||result.error);e.code=result.error;throw e;}return result.data;};
   }else{const functions=firebase.app().functions("asia-southeast1");call=async(n,d)=>{try{return (await functions.httpsCallable(n)(d)).data;}catch(e){e.code=e.code?.replace(/^functions\//,"");throw e;}};}
-  await liff.init({liffId:c.liffId});if(!liff.isLoggedIn()){liff.login();return;}
+  requestedCardView();
+  await liff.init({liffId:c.liffId});liffInitialized=true;cleanLoginCallback();
+  if(!liff.isLoggedIn()){
+   showLoginFailure({});const last=Number(sessionStorage.getItem("g2LineLoginAttempt")||0);
+   if(!liff.isInClient?.()&&Date.now()-last>60000)await restartLineLogin();return;
+  }
   const idToken=liff.getIDToken();if(!idToken)throw Error("LINE ต้องเปิดสิทธิ์ openid");
   const login=await call("memberLineLogin",{idToken});await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.SESSION);
   uid=(await firebase.auth().signInWithCustomToken(login.customToken)).user.uid;
+  sessionStorage.removeItem("g2LineLoginAttempt");
   const saved=sessionStorage.getItem("g2PendingManual");
   if(saved){try{const p=JSON.parse(saved);if(!p?.data?.requestId||!p.key)throw Error("Invalid pending record");pending=p;}catch{throw Error("ข้อมูลรายการค้างไม่สมบูรณ์ กรุณาให้แอดมินตรวจประวัติก่อนทำรายการใหม่");}}
   await refresh();
   void readLinePhoto();
   status(pending?"มีรายการเพิ่มแต้มค้าง กดส่งรายการค้างเดิม":"เข้าสู่ระบบแล้ว");
-}catch(e){status(e.message);}})();
+}catch(e){if(authFailure(e)||["LINE_CHANNEL_MISMATCH","LINE_VERIFY_UNAVAILABLE"].includes(e.message))showLoginFailure(e);else status(e.message);}})();

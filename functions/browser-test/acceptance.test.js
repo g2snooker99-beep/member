@@ -14,17 +14,20 @@ async function ui(capabilities={staff:true,admin:true},options={}){
  const banner=fs.readFileSync(path.join(__dirname,"../../secure-public/club-banner.svg"),"utf8");
  await context.route("**/*",async route=>{
   const url=new URL(route.request().url());
+  if(url.hostname==="liff.line.me")return route.fulfill({status:200,contentType:"text/html",body:"<html><body>LINE reopen test</body></html>"});
   if(url.hostname==="profile.line-scdn.net")return route.fulfill({status:200,contentType:"image/png",body:Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9ZkAAAAASUVORK5CYII=","base64")});
   if(url.origin!=="https://g2-member-test-api.onrender.com")return route.abort();
   return route.fulfill({status:200,contentType:url.pathname==="/app.js"?"application/javascript":url.pathname==="/member.css"?"text/css":url.pathname==="/club-banner.svg"?"image/svg+xml":"text/html",body:url.pathname==="/app.js"?code:url.pathname==="/member.css"?css:url.pathname==="/club-banner.svg"?banner:html});
  });
  await page.addInitScript(({capabilities,options})=>{
   const uid="U"+"a".repeat(32);
-  window.fixture={calls:[],failManual:false,deny:false,redeemed:false,closed:false,reads:[],qrs:[]};
+  if(options.recentLoginAttempt)sessionStorage.setItem("g2LineLoginAttempt",String(Date.now()));
+  window.fixture={loginCalls:[],logoutCalls:0,calls:[],failManual:false,deny:false,redeemed:false,closed:false,reads:[],qrs:[]};
   window.G2_MEMBER_CONFIG={firebase:{projectId:"g2-member-test"},liffId:"TEST",backendUrl:location.origin};
-  window.liff={init:async()=>{},isLoggedIn:()=>true,getIDToken:()=>"test-only-line-token",getProfile:async()=>{if(options.failLinePhoto)throw Error("profile not permitted");return {userId:options.wrongPhotoUser?"U"+"b".repeat(32):uid,pictureUrl:options.linePhoto||""};}};
+  window.liff={init:async()=>{fixture.initQuery=location.search;},isLoggedIn:()=>!options.notLoggedIn,isInClient:()=>options.inClient!==false,logout:()=>{fixture.logoutCalls++;},login:data=>{fixture.loginCalls.push(data);},getIDToken:()=>"test-only-line-token",getProfile:async()=>{if(options.failLinePhoto)throw Error("profile not permitted");return {userId:options.wrongPhotoUser?"U"+"b".repeat(32):uid,pictureUrl:options.linePhoto||""};}};
   window.QRCode=function(el,config){window.fixture.qrs.push(config);const canvas=document.createElement("canvas");canvas.width=config.width;canvas.height=config.height;el.append(canvas);};
   window.Html5QrcodeScanner=function(){};
+  if(options.fastReadTimeout){const native=window.setTimeout.bind(window);window.setTimeout=(fn,ms,...args)=>native(fn,ms===20000?40:ms,...args);}
   const q=(name,filters=[],cap=Infinity,cursor=null)=>({
    where(field,op,value){return q(name,[...filters,{field,op,value}],cap,cursor);},
    orderBy(){return this;},
@@ -50,7 +53,7 @@ async function ui(capabilities={staff:true,admin:true},options={}){
       const value=options.snapshots?.[name.split("/")[1]];
       return {exists:value!==undefined,data:()=>({points:value})};
      }
-     return {exists:true,data:()=>({nickname:options.nickname||"TEST",role:options.profileRole||"admin",memberId:"G2-TEST",pictureUrl:options.storedPhoto||"",monthlyPoints:options.points??0,pointsMonth:options.pointsMonth||"2026-10"})};
+     return {exists:true,data:()=>({nickname:options.nickname||"TEST",role:options.profileRole||"admin",memberId:"G2-TEST",pictureUrl:options.storedPhoto||"",monthlyPoints:options.points??0,pointsMonth:options.pointsMonth||new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok",year:"numeric",month:"2-digit"}).format(new Date()).slice(0,7)})};
     }
    })
   });
@@ -75,6 +78,7 @@ async function ui(capabilities={staff:true,admin:true},options={}){
      result={points:entries.reduce((n,t)=>n+t.points,0),count:entries.length,billCount:new Set(entries.filter(t=>t.billId!==undefined).map(t=>t.billId)).size,months:Object.values(months).sort((a,b)=>b.month.localeCompare(a.month)).map(m=>({...m,billCount:new Set(m.bills).size})),basis:"recorded-transactions"};
     }
    }
+   if(name==="memberLineLogin"&&options.loginError)return {ok:false,json:async()=>({error:options.loginErrorCode||"unauthenticated",message:options.loginError})};
    if(name==="memberLineLogin")result={customToken:"test"};
    if(name==="memberSession")result={registered:true,active:true,capabilities};
    if(name==="memberPreviewMonth")result={monthId:data.month,state:f.closed?"closed":"open",top3:[{rank:1,nickname:"<img src=x onerror=alert(1)>",points:30}],shirtCount:1,discountCount:2,canClose:!f.closed};
@@ -83,8 +87,9 @@ async function ui(capabilities={staff:true,admin:true},options={}){
    return {ok:true,json:async()=>({data:result})};
   };
  },{capabilities,options});
- await page.goto("https://g2-member-test-api.onrender.com/");
- await page.locator("#status").filter({hasText:"เข้าสู่ระบบแล้ว"}).waitFor();
+ await page.goto("https://g2-member-test-api.onrender.com/"+(options.query?"?"+options.query:""));
+ if(options.loginError||options.notLoggedIn)await page.locator("#loginRecovery").waitFor({state:"visible"});
+ else await page.locator("#status").filter({hasText:"เข้าสู่ระบบแล้ว"}).waitFor();
  return {page,close:()=>context.close()};
 }
 test("Chromium: forged profile role cannot reveal staff or admin controls",async()=>{
@@ -311,4 +316,68 @@ test("Chromium: failed club reads and LINE profile permission keep points and in
  }finally{await h.close();}
  const wrong=await ui({staff:false,admin:false},{profileRole:"member",wrongPhotoUser:true,linePhoto:"https://profile.line-scdn.net/wrong.png",storedPhoto:"https://example.com/bad.jpg"});
  try{assert.equal(await wrong.page.locator("#memberPhoto").getAttribute("src"),null);}finally{await wrong.close();}
+});
+
+test("Chromium: rejected LINE login hides private UI and external reconnect uses a clean redirect without a retry loop",async()=>{
+ const h=await ui({staff:false,admin:false},{inClient:false,loginError:"LINE_SESSION_EXPIRED",query:"code=EXPIRED-CODE&state=OLD-STATE&liffClientId=2010084269&view=qr"});
+ try{
+  assert.equal(await h.page.locator("#card").isVisible(),false);
+  assert.equal(await h.page.locator("#staff").isVisible(),false);
+  assert.equal(await h.page.locator("#admin").isVisible(),false);
+  assert.equal(await h.page.evaluate(()=>fixture.calls.filter(x=>x.name==="memberLineLogin").length),1);
+  assert.equal(await h.page.evaluate(()=>fixture.loginCalls.length),0);
+  assert.match(await h.page.evaluate(()=>fixture.initQuery),/EXPIRED-CODE/);
+  assert.equal(await h.page.evaluate(()=>location.search),"?view=qr");
+  await h.page.locator("#lineReconnect").click();
+  const reconnect=await h.page.evaluate(()=>({logout:fixture.logoutCalls,calls:fixture.loginCalls}));
+  assert.equal(reconnect.logout,1);
+  assert.equal(reconnect.calls[0].redirectUri,"https://g2-member-test-api.onrender.com/index.html?view=qr");
+  assert.equal(await h.page.evaluate(()=>fixture.calls.length),1);
+ }finally{await h.close();}
+});
+test("Chromium: LIFF reconnect relaunches canonical LINE app and never calls external login/logout",async()=>{
+ const h=await ui({staff:false,admin:false},{inClient:true,loginError:"LINE_LOGIN_REJECTED",query:"code=OLD&state=OLD"});
+ try{
+  assert.equal(await h.page.evaluate(()=>fixture.loginCalls.length+fixture.logoutCalls),0);
+  await h.page.locator("#lineReconnect").click();
+  await h.page.waitForURL("https://liff.line.me/TEST");
+  assert.equal(h.page.url(),"https://liff.line.me/TEST");
+ }finally{await h.close();}
+});
+test("Chromium: QR deep link opens a card directly and cleans consumed login callbacks",async()=>{
+ const h=await ui({staff:false,admin:false},{profileRole:"member",query:"view=qr&code=USED&state=USED"});
+ try{
+  assert.ok(await h.page.locator("#view-qr").isVisible());
+  assert.equal(await h.page.evaluate(()=>fixture.qrs[0].text),"U"+"a".repeat(32));
+  assert.equal(await h.page.evaluate(()=>location.search),"?view=qr");
+ }finally{await h.close();}
+});
+test("Chromium: stale month balance is retained as a note, current score is zero; admin rank never waits for a leaderboard",async()=>{
+ const h=await ui({staff:true,admin:true},{profileRole:"admin",points:10,pointsMonth:"2026-07"});
+ try{
+  assert.equal(await h.page.locator("#monthlyPoints").innerText(),"0");
+  assert.match(await h.page.locator("#oldBalanceNote").innerText(),/ยอดเดิม 10 แต้ม/);
+  assert.match(await h.page.locator("#homeRank").innerText(),/บัญชีพนักงาน/);
+  assert.equal(await h.page.evaluate(()=>fixture.calls.some(x=>x.name==="memberClubData"&&x.data.view==="board")),false);
+  assert.equal(await h.page.evaluate(()=>fixture.calls.some(x=>!["memberLineLogin","memberSession","memberClubData"].includes(x.name))),false);
+ }finally{await h.close();}
+});
+test("Chromium: slow optional ranking/stats time out while member card remains usable",async()=>{
+ const h=await ui({staff:false,admin:false},{profileRole:"member",points:12,delayClub:true,fastReadTimeout:true});
+ try{
+  await h.page.locator("#homeRank").filter({hasText:"ยังโหลดอันดับไม่ได้"}).waitFor();
+  assert.equal(await h.page.locator("#monthlyPoints").innerText(),"12");
+  await h.page.locator("#showCard").click();
+  assert.ok(await h.page.locator("#view-qr").isVisible());
+ }finally{await h.close();}
+});
+
+test("Chromium: cancelled or unsuccessful external login does not redirect repeatedly",async()=>{
+ const h=await ui({staff:false,admin:false},{notLoggedIn:true,inClient:false,recentLoginAttempt:true,query:"error=access_denied&state=OLD"});
+ try{
+  assert.equal(await h.page.evaluate(()=>fixture.loginCalls.length),0);
+  assert.equal(await h.page.locator("#card").isVisible(),false);
+  await h.page.locator("#lineReconnect").click();
+  assert.equal(await h.page.evaluate(()=>fixture.loginCalls.length),1);
+ }finally{await h.close();}
 });
