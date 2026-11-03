@@ -14,7 +14,7 @@ permissions:
   contents: read
 jobs:
   firebase-emulator:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       GCLOUD_PROJECT: demo-g2-member
