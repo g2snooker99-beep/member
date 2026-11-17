@@ -82,6 +82,8 @@ async function ui(capabilities={staff:true,admin:true},options={}){
    if(name==="memberLineLogin")result={customToken:"test"};
    if(name==="memberSession")result={registered:true,active:true,capabilities,rewardsV2:options.rewardsV2===true};
    if(name==="memberRewardCatalog")result={balances:{monthly:5,carry:12},rewards:[{id:"water",name:"น้ำดื่ม 1 ขวด",pool:"monthly",cost:5,quota:10,remaining:3,personalRemaining:1,canRedeem:true},{id:"hour",name:"เล่นฟรี",pool:"carry",cost:20,quota:3,remaining:3,personalRemaining:1,canRedeem:false}]};
+   if(name==="memberRewardCatalog"&&data.manage)result={rewards:[],products:[]};
+   if(name==="memberRewardSave")result={id:"f".repeat(32)};
    if(name==="memberRewardTicket")result={token:"a".repeat(48),expiresAtMs:Date.now()+300000,cost:5,remaining:0};
    if(name==="memberPreviewMonth")result={monthId:data.month,state:f.closed?"closed":"open",top3:[{rank:1,nickname:"<img src=x onerror=alert(1)>",points:30}],shirtCount:1,discountCount:2,canClose:!f.closed};
    if(name==="memberCloseMonth"){f.closed=true;result={state:"closed"};}
@@ -425,5 +427,33 @@ test("Chromium: approved theme follows all member tabs at mobile width",async()=
    assert.equal(await nav.locator('[aria-current="page"]').getAttribute("id"),"nav-"+tab);
    assert.equal(await h.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   }
+ }finally{await h.close();}
+});
+
+test("Chromium: admin uploads and removes a reward photo and sees success without reloading the catalog",async()=>{
+ const h=await ui({staff:true,admin:true},{rewardsV2:true});
+ try{
+  await h.page.locator("#manageRewardShop").click();
+  const form=h.page.locator("#rewardShopAdmin form");
+  await form.getByLabel("ชื่อรางวัล",{exact:true}).fill("น้ำดื่ม G2");
+  await form.getByLabel("แต้มที่ใช้",{exact:true}).fill("5");
+  await form.getByLabel("โควตารวมต่อเดือน",{exact:true}).fill("10");
+  await form.getByLabel("โควตาต่อคนต่อเดือน",{exact:true}).fill("1");
+  await form.getByLabel("เปิดให้แลก",{exact:true}).check();
+  await form.getByLabel("รูปสินค้า (ไม่บังคับ)",{exact:true}).setInputFiles({
+   name:"reward.png",mimeType:"image/png",buffer:Buffer.from(await h.page.evaluate(()=>{const c=document.createElement("canvas");c.width=c.height=10;return c.toDataURL("image/png").split(",")[1];}),"base64")
+  });
+  await form.getByAltText("ตัวอย่างรูปสินค้า").waitFor({state:"visible"});
+  await form.getByRole("button",{name:"บันทึกรางวัล"}).click();
+  await form.getByText("บันทึกรางวัลแล้ว",{exact:true}).waitFor();
+  const first=await h.page.evaluate(()=>fixture.calls.filter(c=>c.name==="memberRewardSave").at(-1).data);
+  assert.match(first.image,/^data:image\/jpeg;base64,\/9j\//);
+  assert.equal(await form.getByLabel("เลือกรางวัล",{exact:true}).inputValue(),"f".repeat(32));
+  await form.getByRole("button",{name:"ลบรูป"}).click();
+  await form.getByRole("button",{name:"บันทึกรางวัล"}).click();
+  await form.getByText("บันทึกรางวัลแล้ว",{exact:true}).waitFor();
+  const reads=await h.page.evaluate(()=>fixture.calls.filter(c=>c.name==="memberRewardCatalog").length);
+  assert.equal(reads,1);
+  assert.equal(await h.page.evaluate(()=>fixture.calls.filter(c=>c.name==="memberRewardSave").at(-1).data.image),"");
  }finally{await h.close();}
 });
