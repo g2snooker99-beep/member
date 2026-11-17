@@ -407,3 +407,23 @@ test("Chromium: active shop replaces ranking, labels wallets and issues a QR wit
   assert.equal(await h.page.locator("#rewardShop").isVisible(),true);
  }finally{await h.close();}
 });
+
+test("Chromium: approved theme follows all member tabs at mobile width",async()=>{
+ const h=await ui({staff:false,admin:false},{profileRole:"member",rewardsV2:true});try{
+  await h.page.setViewportSize({width:320,height:700});
+  const nav=h.page.locator("#memberNav");
+  const theme=()=>h.page.evaluate(()=>[getComputedStyle(document.body).backgroundColor,getComputedStyle(document.querySelector(".brand-header")).backgroundImage,getComputedStyle(document.querySelector("#memberNav")).backgroundColor]);
+  const base=await theme();
+  assert.equal(base[0],"rgb(245, 239, 228)");
+  assert.match(base[1],/linear-gradient/);
+  assert.equal(base[2],"rgb(250, 244, 232)");
+  assert.deepEqual(await nav.locator("button:visible").evaluateAll(buttons=>buttons.map(b=>b.id)),["nav-home","nav-rewards","nav-history","nav-qr"]);
+  for(const [tab,content] of [["rewards","#rewardShop"],["history","#historyTransactions"],["qr","#qr canvas"],["home",".profile-heading"]]){
+   await h.page.locator("#nav-"+tab).click();
+   await h.page.locator(content).waitFor({state:"visible"});
+   assert.deepEqual(await theme(),base);
+   assert.equal(await nav.locator('[aria-current="page"]').getAttribute("id"),"nav-"+tab);
+   assert.equal(await h.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  }
+ }finally{await h.close();}
+});
