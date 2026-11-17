@@ -448,7 +448,7 @@ test("Chromium: admin uploads and removes a reward photo and sees success withou
   await form.getByText("บันทึกรางวัลแล้ว",{exact:true}).waitFor();
   const first=await h.page.evaluate(()=>fixture.calls.filter(c=>c.name==="memberRewardSave").at(-1).data);
   assert.match(first.image,/^data:image\/jpeg;base64,\/9j\//);
-  assert.equal(await form.getByLabel("เลือกรางวัล",{exact:true}).inputValue(),"f".repeat(32));
+  assert.equal(await form.getByLabel(/เลือกรางวัล/).inputValue(),"f".repeat(32));
   await form.getByRole("button",{name:"ลบรูป"}).click();
   await form.getByRole("button",{name:"บันทึกรางวัล"}).click();
   await form.getByText("บันทึกรางวัลแล้ว",{exact:true}).waitFor();
