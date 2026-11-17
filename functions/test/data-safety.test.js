@@ -10,7 +10,7 @@ test("encrypted backup preserves all typed values and rejects corruption/wrong k
   const key=crypto.randomBytes(32),encrypted=seal(backup,key);assert.ok(!encrypted.includes(data.phone));
   const recovered=unseal(encrypted,key);assert.deepEqual(decode(recovered.records[0].data,{Timestamp,GeoPoint,db}),data);
   assert.throws(()=>unseal(encrypted,crypto.randomBytes(32)));
-  const corrupt=JSON.parse(encrypted);corrupt.ciphertext="A"+corrupt.ciphertext.slice(1);assert.throws(()=>unseal(JSON.stringify(corrupt),key));
+  const corrupt=JSON.parse(encrypted);corrupt.ciphertext=(corrupt.ciphertext[0]==="A"?"B":"A")+corrupt.ciphertext.slice(1);assert.throws(()=>unseal(JSON.stringify(corrupt),key));
 });
 test("restore refuses production, path escapes and existing target; dry run has no writes",async()=>{
   const records=[{path:"users/a",data:encode({monthlyPoints:37})}],backup={count:1,records,recordsSha256:crypto.createHash("sha256").update(JSON.stringify(records)).digest("hex")};
