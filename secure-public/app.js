@@ -125,6 +125,29 @@ function openRewardTicket(t,r,trigger){
   $("rewardTicketValidity").textContent="QR หมดอายุแล้ว กรุณากลับไปกดแลกใหม่";
  },Math.min(expiry-now,300000));
 }
+function rewardPhotoSource(value){
+ return typeof value==="string"&&value.length<=32791&&/^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(value)?value:"";
+}
+async function prepareRewardPhoto(file){
+ if(!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>10*1024*1024)
+  throw Error("เลือกรูป JPG, PNG หรือ WebP ขนาดไม่เกิน 10 MB");
+ const src=URL.createObjectURL(file),img=document.createElement("img");
+ try{
+  await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error("เปิดรูปไม่ได้ กรุณาเลือกรูปใหม่"));img.src=src;});
+  const max=Math.max(img.naturalWidth,img.naturalHeight);
+  if(!max||img.naturalWidth*img.naturalHeight>36_000_000)throw Error("รูปมีขนาดใหญ่เกินไป กรุณาลดขนาดรูป");
+  const canvas=document.createElement("canvas"),ctx=canvas.getContext("2d");
+  for(const [size,quality] of [[240,.84],[200,.72],[160,.62],[128,.55]]){
+   const scale=Math.min(1,size/max);
+   canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+   ctx.fillStyle="#fffaf1";ctx.fillRect(0,0,canvas.width,canvas.height);
+   ctx.drawImage(img,0,0,canvas.width,canvas.height);
+   const photo=rewardPhotoSource(canvas.toDataURL("image/jpeg",quality));
+   if(photo)return photo;
+  }
+  throw Error("ย่อรูปไม่สำเร็จ กรุณาเลือกรูปใหม่");
+ }finally{URL.revokeObjectURL(src);}
+}
 async function renderRewardShop(version){
  const root=$("rewardShop");
  const result=await call("memberRewardCatalog",{});
@@ -148,6 +171,8 @@ async function renderRewardShop(version){
  for(const r of result.rewards){
   const box=node("article","","surface reward-card g2-shop-reward");
   const icon=node("span","","g2-r-icon");icon.dataset.icon=rewardIcon(r.name);icon.setAttribute("aria-hidden","true");
+  const photo=rewardPhotoSource(r.image);
+  if(photo){const img=node("img","","g2-reward-photo");img.alt="";img.loading="lazy";img.onerror=()=>img.remove();img.src=photo;icon.append(img);}
   const info=node("div","","g2-r-info");
   info.append(node("h3",r.name),node("p",r.cost+" "+rewardPools[r.pool],"g2-r-cost"),node("p","เหลือ "+r.remaining+" จาก "+r.quota+" สิทธิ์","muted"));
   const button=shopButton(r.remaining===0?"สิทธิ์เดือนนี้เต็มแล้ว":r.personalRemaining===0?"ใช้สิทธิ์ครบแล้ว":r.canRedeem?"แลก":"แต้มยังไม่พอ",()=>action(async()=>{
@@ -173,8 +198,8 @@ async function showShopAdmin(){
  const root=$("rewardShopAdmin"),d=await call("memberRewardCatalog",{manage:true});
  root.hidden=false;root.replaceChildren();
  if(!d?.rewards){root.append(node("p","ระบบแลกรางวัลยังไม่เปิด"));return;}
- const form=node("form",""),chosen=node("select","");
- function bind(label,input){const wrapped=node("label",label);wrapped.append(input);form.append(wrapped);}
+ const form=node("form",""),fieldsGroup=node("fieldset","","g2-reward-editor-fields"),chosen=node("select","");
+ function bind(label,input){const wrapped=node("label",label);wrapped.append(input);fieldsGroup.append(wrapped);}
  function input(type){const v=node("input","");v.type=type;return v;}
  function option(value,label){const o=node("option",label);o.value=value;return o;}
  chosen.append(option("","เพิ่มรางวัลใหม่"),...d.rewards.map(r=>option(r.id,r.name)));bind("เลือกรางวัล",chosen);
@@ -187,17 +212,56 @@ async function showShopAdmin(){
  const qty=input("number");qty.min=1;qty.max=100;bind("ตัดจำนวนต่อสิทธิ์",qty);
  const syncProduct=()=>{qty.disabled=!product.value;qty.required=!!product.value;if(!product.value)qty.value="";else if(!qty.value)qty.value="1";};
  product.onchange=syncProduct;
+ const file=input("file");file.accept="image/jpeg,image/png,image/webp";bind("รูปสินค้า (ไม่บังคับ)",file);
+ const photoPreview=node("img","","g2-reward-photo-preview");photoPreview.alt="ตัวอย่างรูปสินค้า";photoPreview.hidden=true;
+ const photoNote=node("p","","muted");photoNote.setAttribute("aria-live","polite");
+ const removePhoto=shopButton("ลบรูป",null,"secondary");removePhoto.hidden=true;
+ fieldsGroup.append(photoPreview,removePhoto,photoNote);
  const active=input("checkbox");bind("เปิดให้แลก",active);
+ const submit=shopButton("บันทึกรางวัล",null);submit.type="submit";fieldsGroup.append(submit);
+ const saveNote=node("p","","g2-reward-save-note");saveNote.setAttribute("role","status");
+ form.append(fieldsGroup,saveNote);
+ let savedImage="",selectedImage="",imageSequence=0,imagePending=false;
+ function showPhoto(){
+  photoPreview.hidden=!selectedImage;removePhoto.hidden=!selectedImage;
+  if(selectedImage)photoPreview.src=selectedImage;else photoPreview.removeAttribute("src");
+ }
+ file.onchange=async()=>{
+  const next=file.files?.[0];
+  if(!next)return;
+  const sequence=++imageSequence;
+  imagePending=true;submit.disabled=true;photoNote.textContent="กำลังเตรียมรูป…";
+  try{
+   const photo=await prepareRewardPhoto(next);
+   if(sequence===imageSequence){selectedImage=photo;showPhoto();photoNote.textContent="พร้อมบันทึกรูป";}
+  }catch(e){if(sequence===imageSequence)photoNote.textContent=e.message||"เตรียมรูปไม่สำเร็จ";}
+  finally{if(sequence===imageSequence){file.value="";imagePending=false;submit.disabled=false;}}
+ };
+ removePhoto.onclick=()=>{
+  imageSequence++;imagePending=false;submit.disabled=false;file.value="";selectedImage="";
+  showPhoto();photoNote.textContent="รูปจะถูกลบเมื่อกดบันทึก";
+ };
  chosen.onchange=()=>{
   const r=d.rewards.find(r=>r.id===chosen.value);
   name.value=r?.name||"";pool.value=r?.pool||"carry";active.checked=r?.active??false;
   product.value=r?.productId?String(r.productId):"";qty.value=r?.inventoryQty||"";syncProduct();
   ["cost","quota","perMember"].forEach((k,i)=>{fields[i].value=r?.[k]??"";});
+  imageSequence++;imagePending=false;submit.disabled=false;file.value="";photoNote.textContent="";
+  savedImage=selectedImage=rewardPhotoSource(r?.image);showPhoto();saveNote.textContent="";
  };chosen.onchange();
- const submit=shopButton("บันทึกรางวัล",null);submit.type="submit";form.append(submit);
- form.onsubmit=e=>{e.preventDefault();void action(async()=>{
-  await call("memberRewardSave",{rewardId:chosen.value||undefined,name:name.value,pool:pool.value,cost:Number(fields[0].value),quota:Number(fields[1].value),perMember:Number(fields[2].value),active:active.checked,productId:Number(product.value),inventoryQty:product.value?Number(qty.value):0});
-  await showShopAdmin();return "บันทึกรางวัลแล้ว";
+ form.onsubmit=e=>{e.preventDefault();if(imagePending)return;void action(async()=>{
+  const draft={rewardId:chosen.value||undefined,name:name.value.trim(),pool:pool.value,cost:Number(fields[0].value),quota:Number(fields[1].value),perMember:Number(fields[2].value),active:active.checked,productId:Number(product.value),inventoryQty:product.value?Number(qty.value):0};
+  if(selectedImage!==savedImage)draft.image=selectedImage;
+  fieldsGroup.disabled=true;saveNote.textContent="กำลังบันทึกรางวัล…";
+  try{
+   const {id}=await call("memberRewardSave",draft);
+   const i=d.rewards.findIndex(r=>r.id===id),saved={...draft,id,image:selectedImage};
+   if(i<0){d.rewards.push(saved);chosen.append(option(id,saved.name));}
+   else{d.rewards[i]=saved;Array.from(chosen.options).find(o=>o.value===id).textContent=saved.name;}
+   chosen.value=id;savedImage=selectedImage;photoNote.textContent="";
+   saveNote.textContent="บันทึกรางวัลแล้ว";return "บันทึกรางวัลแล้ว";
+  }catch(e){saveNote.textContent=e.message||"บันทึกรางวัลไม่สำเร็จ";throw e;}
+  finally{fieldsGroup.disabled=false;}
  });};
  root.append(form);
 }
