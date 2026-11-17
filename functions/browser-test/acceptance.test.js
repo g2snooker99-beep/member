@@ -82,7 +82,7 @@ async function ui(capabilities={staff:true,admin:true},options={}){
    if(name==="memberLineLogin")result={customToken:"test"};
    if(name==="memberSession")result={registered:true,active:true,capabilities,rewardsV2:options.rewardsV2===true};
    if(name==="memberRewardCatalog")result={balances:{monthly:5,carry:12},rewards:[{id:"water",name:"น้ำดื่ม 1 ขวด",pool:"monthly",cost:5,quota:10,remaining:3,personalRemaining:1,canRedeem:true},{id:"hour",name:"เล่นฟรี",pool:"carry",cost:20,quota:3,remaining:3,personalRemaining:1,canRedeem:false}]};
-   if(name==="memberRewardTicket")result={token:"a".repeat(48),cost:5,remaining:0};
+   if(name==="memberRewardTicket")result={token:"a".repeat(48),expiresAtMs:Date.now()+300000,cost:5,remaining:0};
    if(name==="memberPreviewMonth")result={monthId:data.month,state:f.closed?"closed":"open",top3:[{rank:1,nickname:"<img src=x onerror=alert(1)>",points:30}],shirtCount:1,discountCount:2,canClose:!f.closed};
    if(name==="memberCloseMonth"){f.closed=true;result={state:"closed"};}
    if(name==="memberRedeemReward"){result={duplicate:f.redeemed,type:"discount10",billRef:data.billRef};f.redeemed=true;}
@@ -393,8 +393,14 @@ test("Chromium: active shop replaces ranking, labels wallets and issues a QR wit
   assert.match(await h.page.locator("#rewardShop").innerText(),/เหลือ 3 จาก 10 สิทธิ์/);
   assert.equal(await h.page.getByRole("button",{name:"แต้มยังไม่พอ"}).isDisabled(),true);
   await h.page.getByRole("button",{name:"แลก",exact:true}).click();
-  await h.page.locator("#rewardShop canvas").waitFor();
+  await h.page.locator("#rewardTicketCode canvas").waitFor();
+  assert.equal(await h.page.locator("#rewardShop").isVisible(),false);
+  assert.equal(await h.page.locator("#memberNav").isVisible(),false);
   assert.equal(await h.page.evaluate(()=>fixture.qrs.at(-1).text),"g2shop:"+"a".repeat(48));
   assert.equal(await h.page.evaluate(()=>fixture.calls.some(c=>c.name==="memberRewardConfirm")),false);
+  await h.page.locator("#rewardTicketBack").click();
+  assert.equal(await h.page.locator("#rewardTicketScreen").isVisible(),false);
+  assert.equal(await h.page.locator("#rewardTicketCode canvas").count(),0);
+  assert.equal(await h.page.locator("#rewardShop").isVisible(),true);
  }finally{await h.close();}
 });
