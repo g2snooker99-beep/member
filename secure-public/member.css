@@ -214,3 +214,36 @@ input::placeholder{color:#8b9485}
 
 .bottom-nav[data-rewards="true"]{grid-template-columns:repeat(4,minmax(0,1fr))}
 .bottom-nav [hidden]{display:none!important}
+
+/* Rewards shop: separate balances and a dedicated QR screen. */
+.g2-shop-view .profile-heading,.g2-ticket-open .status-bar,.g2-ticket-open #memberNav,
+.g2-ticket-open #view-rewards > .page-heading,.g2-ticket-open #rewardShop,.g2-ticket-open #rewards{display:none}
+.g2-shop-view .brand-header{clip-path:none;border-radius:0 0 28px 28px;justify-content:center;min-height:96px;background-color:#103c2a;background-image:linear-gradient(150deg,#165039,#092d20);border-color:#bf9a53}
+.g2-shop-view .brand-mark,.g2-shop-view .club-label{display:none}
+.g2-shop-view .brand{text-align:center;color:#e8cc83}
+.g2-shop-view .brand strong{font:700 clamp(24px,7vw,35px)/1.05 Georgia,serif;letter-spacing:.03em}
+.g2-shop-view .brand small{color:#ede0b9;margin-top:7px;letter-spacing:.3em}
+.g2-shop-view #view-rewards > .page-heading,.g2-reward-title{text-align:center}
+.g2-shop-view #view-rewards > .page-heading .eyebrow{display:none}
+.g2-reward-title,.g2-shop-view #rewardsHeading{color:#103c2a;font-weight:850;margin:0 0 12px;font-size:clamp(23px,6vw,31px)}
+.g2-rewards-balance{color:#fff7e1;border:1px solid #bd9955;background-image:linear-gradient(90deg,#0a3927 0%,#0a3927e8 61%,#0a392755),url("club-banner.svg");padding:17px}
+.g2-rewards-balance h3{margin:0 0 12px}
+.g2-wallets{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g2-wallet{display:grid;gap:0;padding:7px 12px;border:1px solid #d1b67c66;background:#072b1ee8;border-radius:12px}
+.g2-wallet span,.g2-wallet small{color:#f5e8c4}
+.g2-wallet strong{font:700 clamp(30px,10vw,48px)/1.1 Georgia,serif;color:#f0ce80}
+.g2-shop-reward{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;padding:12px;border-color:#e6d9c0;background:#fdf8ee}
+.g2-shop-reward .g2-r-info h3,.g2-shop-reward .g2-r-info p{margin:0}
+.g2-r-icon{display:inline-grid;place-items:center;width:43px;height:43px;border-radius:13px;background:#e6eddf;color:#175338;font-size:23px;font-weight:800}
+.g2-r-info{overflow-wrap:anywhere}
+.g2-r-cost,#rewardTicketDetails{color:#785b24;font-weight:750}
+.g2-shop-reward .primary{min-height:44px;border-radius:999px;padding:8px 12px;max-width:94px}
+.g2-shop-reward .primary:disabled{background:#e4e0d6;color:#57544b;opacity:1}
+.g2-ticket-screen{text-align:center}
+.g2-ticket-card{display:grid;justify-items:center;gap:8px;background:#fdf8ee;border-color:#decba5}
+.g2-ticket-card h3,.g2-ticket-card p{margin:0;overflow-wrap:anywhere}
+.g2-ticket-card h3{font-size:clamp(20px,5.5vw,28px);color:#103c2a}
+.g2-ticket-code{width:232px;max-width:100%;padding:16px;background:#fff;border-radius:10px;margin:8px 0}
+.g2-ticket-code canvas,.g2-ticket-code img,.g2-ticket-code table{max-width:100%;margin:auto}
+.g2-ticket-confirmation{padding-top:10px;border-top:1px solid #e6d9c0;width:100%;color:#15452f;font-weight:750}
+#rewardTicketBack{min-height:46px;margin-top:14px}
