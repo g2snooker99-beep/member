@@ -8,12 +8,21 @@ before(async()=>{browser=await chromium.launch({headless:true});});
 after(async()=>{await browser?.close();});
 async function ui(capabilities={staff:true,admin:true},options={}){
  const context=await browser.newContext(),page=await context.newPage();
- const html=fs.readFileSync(path.join(__dirname,"../../secure-public/index.html"),"utf8").replace(/<script[\s\S]*?<\/script>/g,"").replace("</html>",'<script src="/app.js"></script></html>');
+ const html=fs.readFileSync(path.join(__dirname,"../../secure-public/index.html"),"utf8").replace(/<script[\s\S]*?<\/script>/g,tag=>options.lazyQrScripts&&/(qrcodejs|html5-qrcode)/.test(tag)?tag:"").replace("</html>",'<script src="/app.js"></script></html>');
  const code=fs.readFileSync(path.join(__dirname,"../../secure-public/app.js"),"utf8");
  const css=fs.readFileSync(path.join(__dirname,"../../secure-public/member.css"),"utf8");
  const banner=fs.readFileSync(path.join(__dirname,"../../secure-public/club-banner.svg"),"utf8");
+ const qrRequests=[];
  await context.route("**/*",async route=>{
   const url=new URL(route.request().url());
+  if(options.lazyQrScripts&&url.hostname==="cdnjs.cloudflare.com"&&url.pathname.endsWith("/qrcode.min.js")){
+   qrRequests.push("qr");
+   return route.fulfill({contentType:"application/javascript",body:'window.QRCode=function(el){el.append(document.createElement("canvas"));};'});
+  }
+  if(options.lazyQrScripts&&url.hostname==="unpkg.com"&&url.pathname.endsWith("/html5-qrcode.min.js")){
+   qrRequests.push("scanner");
+   return route.fulfill({contentType:"application/javascript",body:'window.Html5QrcodeScanner=function(){this.render=function(){document.getElementById("reader").textContent="Scanner ready";};};'});
+  }
   if(url.hostname==="liff.line.me")return route.fulfill({status:200,contentType:"text/html",body:"<html><body>LINE reopen test</body></html>"});
   if(url.hostname==="profile.line-scdn.net")return route.fulfill({status:200,contentType:"image/png",body:Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9ZkAAAAASUVORK5CYII=","base64")});
   if(url.origin!=="https://g2-member-test-api.onrender.com")return route.abort();
@@ -25,8 +34,10 @@ async function ui(capabilities={staff:true,admin:true},options={}){
   window.fixture={loginCalls:[],logoutCalls:0,calls:[],failManual:false,deny:false,redeemed:false,closed:false,reads:[],qrs:[]};
   window.G2_MEMBER_CONFIG={firebase:{projectId:"g2-member-test"},liffId:"TEST",backendUrl:location.origin};
   window.liff={init:async()=>{fixture.initQuery=location.search;},isLoggedIn:()=>!options.notLoggedIn,isInClient:()=>options.inClient!==false,logout:()=>{fixture.logoutCalls++;},login:data=>{fixture.loginCalls.push(data);},getIDToken:()=>"test-only-line-token",getProfile:async()=>{if(options.failLinePhoto)throw Error("profile not permitted");return {userId:options.wrongPhotoUser?"U"+"b".repeat(32):uid,pictureUrl:options.linePhoto||""};}};
-  window.QRCode=function(el,config){window.fixture.qrs.push(config);const canvas=document.createElement("canvas");canvas.width=config.width;canvas.height=config.height;el.append(canvas);};
-  window.Html5QrcodeScanner=function(){};
+  if(!options.lazyQrScripts){
+   window.QRCode=function(el,config){window.fixture.qrs.push(config);const canvas=document.createElement("canvas");canvas.width=config.width;canvas.height=config.height;el.append(canvas);};
+   window.Html5QrcodeScanner=function(){};
+  }
   if(options.fastReadTimeout){const native=window.setTimeout.bind(window);window.setTimeout=(fn,ms,...args)=>native(fn,ms===20000?40:ms,...args);}
   const q=(name,filters=[],cap=Infinity,cursor=null)=>({
    where(field,op,value){return q(name,[...filters,{field,op,value}],cap,cursor);},
@@ -94,7 +105,7 @@ async function ui(capabilities={staff:true,admin:true},options={}){
  await page.goto("https://g2-member-test-api.onrender.com/"+(options.query?"?"+options.query:""));
  if(options.loginError||options.notLoggedIn)await page.locator("#loginRecovery").waitFor({state:"visible"});
  else await page.locator("#status").filter({hasText:"เข้าสู่ระบบแล้ว"}).waitFor();
- return {page,close:()=>context.close()};
+ return {page,qrRequests,close:()=>context.close()};
 }
 test("Chromium: forged profile role cannot reveal staff or admin controls",async()=>{
  const h=await ui({staff:false,admin:false});try{assert.equal(await h.page.locator("#staff").isVisible(),false);assert.equal(await h.page.locator("#admin").isVisible(),false);}finally{await h.close();}
@@ -455,5 +466,19 @@ test("Chromium: admin uploads and removes a reward photo and sees success withou
   const reads=await h.page.evaluate(()=>fixture.calls.filter(c=>c.name==="memberRewardCatalog").length);
   assert.equal(reads,1);
   assert.equal(await h.page.evaluate(()=>fixture.calls.filter(c=>c.name==="memberRewardSave").at(-1).data.image),"");
+ }finally{await h.close();}
+});
+
+test("Chromium: login and home do not load QR scripts; each tool loads when opened",async()=>{
+ const h=await ui({staff:true,admin:true},{lazyQrScripts:true});
+ try{
+  assert.deepEqual(h.qrRequests,[]);
+  await h.page.locator("#monthlyPoints").waitFor({state:"visible"});
+  await h.page.locator("#nav-qr").click();
+  await h.page.locator("#qr canvas").waitFor({state:"visible"});
+  assert.deepEqual(h.qrRequests,["qr"]);
+  await h.page.locator("#scan").click();
+  await h.page.getByText("Scanner ready",{exact:true}).waitFor();
+  assert.deepEqual(h.qrRequests,["qr","scanner"]);
  }finally{await h.close();}
 });
