@@ -4,7 +4,7 @@ const $=id=>document.getElementById(id);
 let db,call,uid,pending=null,scanner=null,busy=false,currentView="home",currentActive=false,profileVersion=0;
 let loadedViews={},loadingViews={},memberProfile=null,historyVersion=0,historyState=null;
 let clubVersion=0,clubBoards=new Map(),clubStats=null,statsTask=null,linePhoto="",boardRowsShown=20,boardGeneration=0;
-let loginFailed=false,liffInitialized=false;
+let loginFailed=false,liffInitialized=false,rewardShopEnabled=false;
 const status=s=>{$("status").textContent=s;};
 const labels={top1:"เสื้อ Limited อันดับ 1",top2:"เสื้อ Limited อันดับ 2",top3:"เสื้อ Limited อันดับ 3",discount10:"ส่วนลด 10% ใช้ได้หนึ่งบิล"};
 const monthAt=d=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok",year:"numeric",month:"2-digit"}).format(d).slice(0,7);
@@ -43,6 +43,15 @@ async function refresh(){
  $("registration").hidden=session.registered;$("card").hidden=!session.registered;
  $("memberNav").hidden=!session.registered||!session.active;currentActive=!!session.active;
  profileVersion++;historyVersion++;clubVersion++;boardGeneration++;historyState=null;loadedViews={};loadingViews={};clubBoards=new Map();clubStats=null;statsTask=null;
+ rewardShopEnabled=session.rewardsV2===true;
+ $("memberNav").classList.toggle("reward-nav",rewardShopEnabled);
+ $("nav-board").hidden=rewardShopEnabled;
+ $("homeRankCard").hidden=rewardShopEnabled;
+ $("homePointsLabel").textContent=rewardShopEnabled?"แต้มที่ได้รับรอบนี้":"คะแนนสะสมของคุณ";
+ $("showRewardsLabel").textContent=rewardShopEnabled?"แลกรางวัล":"ดูสิทธิ์ของฉัน";
+ $("rewardNavLabel").textContent=rewardShopEnabled?"แลกรางวัล":"สิทธิ์";
+ $("rewardsHeading").textContent=rewardShopEnabled?"แลกรางวัล":"สิทธิ์ของฉัน";
+ if(rewardShopEnabled&&currentView==="board")currentView="rewards";
  if(!session.registered)return;
  if(!s.exists)throw Error("ไม่พบข้อมูลสมาชิก กรุณาติดต่อแอดมิน");
  const p=s.data();memberProfile=p;const storedPoints=Number.isFinite(p.monthlyPoints)?p.monthlyPoints:0,currentMonth=monthAt(new Date());
@@ -55,13 +64,13 @@ async function refresh(){
  $("monthlyPoints").textContent=String(points);$("pointsMonth").textContent="รอบเดือน "+monthLabel(currentMonth);
  $("balance").textContent=`คะแนนเดือน ${currentMonth}: ${points}`;
  $("accountState").textContent=session.active?"ใช้งานอยู่":"บัญชีปิดใช้งาน";$("qrMemberId").textContent=p.memberId||"";
- $("progressCard").hidden=!session.active||p.role!=="member";$("pointsProgress").value=Math.max(0,Math.min(15,points));
+ $("progressCard").hidden=!session.active||p.role!=="member"||rewardShopEnabled;$("pointsProgress").value=Math.max(0,Math.min(15,points));
  $("progressText").textContent=points>=15?"ถึง 15 แต้มแล้ว":"อีก "+Math.max(0,15-points)+" แต้ม";
  $("showCard").hidden=!session.active;$("showRewards").hidden=!session.active;
  for(const id of ["qr","history","rewards","leaderboard","results"])$(id).replaceChildren();
  if(!session.active){setView("home",false);row("history","บัญชีถูกปิดใช้งาน กรุณาติดต่อแอดมิน");return;}
  $("staff").hidden=!session.capabilities?.staff;$("admin").hidden=!session.capabilities?.admin;
- if(session.capabilities?.admin)void call("memberRewardCatalog",{manage:true}).then(d=>{if(d?.rewards)$("manageRewardShop").hidden=false;},()=>{});
+ $("manageRewardShop").hidden=!(session.capabilities?.admin&&rewardShopEnabled);
  if(!$("historyMonth").value)$("historyMonth").value=monthAt(new Date());
  $("historyMonth").max=monthAt(new Date());
  if(!$("boardMonth").value)$("boardMonth").value=monthAt(new Date());$("boardMonth").max=monthAt(new Date());
@@ -74,9 +83,7 @@ const shopButton=(label,fn,style="primary")=>{
 };
 async function renderRewardShop(version){
  const root=$("rewardShop");
- let result;
- try{result=await call("memberRewardCatalog",{});}
- catch(e){if(!["not-found","permission-denied","internal","unavailable"].includes(e.code))throw e;return;}
+ const result=await call("memberRewardCatalog",{});
  if(version!==profileVersion||result?.enabled===false||!result?.balances)return;
  root.hidden=false;root.replaceChildren();
  const score=node("section","","points-card");
@@ -91,7 +98,7 @@ async function renderRewardShop(version){
    if(!qr.hidden){qr.hidden=true;button.textContent="แลก";return;}
    const t=await call("memberRewardTicket",{rewardId:r.id});
    qr.replaceChildren(node("p","ใช้ "+t.cost+" แต้ม · หลังยืนยันเหลือ "+t.remaining+" แต้ม"),node("p","ให้พนักงานสแกนภายใน 5 นาที แต้มจะถูกหักเมื่อยืนยัน","muted"));
-   const code=node("div");qr.append(code);new QRCode(code,{text:"g2shop:"+t.token,width:200,height:200});
+   const code=node("div","");qr.append(code);new QRCode(code,{text:"g2shop:"+t.token,width:200,height:200});
    qr.hidden=false;button.textContent="ซ่อน QR";
   }));
   button.disabled=!r.canRedeem;
@@ -112,13 +119,13 @@ async function showShopAdmin(){
  const root=$("rewardShopAdmin"),d=await call("memberRewardCatalog",{manage:true});
  root.hidden=false;root.replaceChildren();
  if(!d?.rewards){root.append(node("p","ระบบแลกรางวัลยังไม่เปิด"));return;}
- const form=node("form"),chosen=node("select");
+ const form=node("form",""),chosen=node("select","");
  function bind(label,input){const wrapped=node("label",label);wrapped.append(input);form.append(wrapped);}
- function input(type){const v=node("input");v.type=type;return v;}
+ function input(type){const v=node("input","");v.type=type;return v;}
  function option(value,label){const o=node("option",label);o.value=value;return o;}
  chosen.append(option("","เพิ่มรางวัลใหม่"),...d.rewards.map(r=>option(r.id,r.name)));bind("เลือกรางวัล",chosen);
  const name=input("text");name.required=true;name.maxLength=80;bind("ชื่อรางวัล",name);
- const pool=node("select");for(const [k,v] of Object.entries(rewardPools))pool.append(option(k,v));bind("ประเภทแต้ม",pool);
+ const pool=node("select","");for(const [k,v] of Object.entries(rewardPools))pool.append(option(k,v));bind("ประเภทแต้ม",pool);
  const fields=["แต้มที่ใช้","โควตารวมต่อเดือน","โควตาต่อคนต่อเดือน"].map(label=>{const v=input("number");v.required=true;v.min=1;v.max=100000;bind(label,v);return v;});
  const active=input("checkbox");bind("เปิดให้แลก",active);
  chosen.onchange=()=>{
@@ -144,7 +151,7 @@ async function loadView(view){
   }else if(view==="history"){
    if(!$("historyMonths").hidden)await renderMonthlyHistory();else await loadHistory();
   }else if(view==="rewards"){
-   $("rewardShop").hidden=true;void renderRewardShop(version).catch(()=>{});
+   $("rewardShop").hidden=true;if(rewardShopEnabled&&memberProfile?.role==="member")await renderRewardShop(version);
    $("rewards").replaceChildren();empty("rewards","กำลังตรวจสิทธิ์ของคุณ…");
    const docs=await db.collection("monthlyRewards").where("userId","==",uid).limit(100).get();
    if(version!==profileVersion)return;

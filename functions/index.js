@@ -22,9 +22,13 @@ function callable(fn,write=true){return onCall({serviceAccount:runtimeServiceAcc
   catch(e){if(e instanceof HttpsError)throw e;const known=["unauthenticated","invalid-argument","permission-denied","failed-precondition","already-exists"].includes(e.code);throw new HttpsError(known?e.code:"unavailable",known?e.message:"Service unavailable; retry safely");}
 });}
 const rewardsEnabled=defineString("MEMBER_REWARDS_V2_ENABLED",{default:"false"});
+function rewardsAvailable(){
+ const first=rewardsFirstMonth.value();
+ return rewardsEnabled.value()==="true"&&/^\d{4}-(0[1-9]|1[0-2])$/.test(first)&&require("./service").monthAt(new Date())>=first;
+}
 function rewardsCall(method,write){
  return callable((s,u,d)=>{
-  if(rewardsEnabled.value()!=="true"||!/^\d{4}-(0[1-9]|1[0-2])$/.test(rewardsFirstMonth.value())||require("./service").monthAt(new Date())<rewardsFirstMonth.value()){
+  if(!rewardsAvailable()){
    if(method==="list")return {enabled:false};
    throw new HttpsError("failed-precondition","ระบบแลกรางวัลยังไม่เปิด");
   }
@@ -37,7 +41,7 @@ exports.memberRewardTicket=rewardsCall("issue",true);
 exports.memberRewardConfirm=rewardsCall("redeem",true);
 exports.memberLineLogin=callable((s,u,d)=>s.exchange(d.idToken),false);
 exports.memberRegister=callable((s,u,d)=>s.register(u,d));
-exports.memberSession=callable((s,u)=>s.session(u),false);
+exports.memberSession=callable(async(s,u)=>({...await s.session(u),rewardsV2:rewardsAvailable()}),false);
 exports.memberClubData=callable((s,u,d)=>s.clubData(u,d),false);
 exports.memberAddPoints=callable((s,u,d)=>s.addPoints(u,d));
 exports.memberOpenMonth=callable((s,u,d)=>s.openMonth(u,d.month));
