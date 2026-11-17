@@ -10,6 +10,7 @@ admin.initializeApp();
 const channel=defineString("MEMBER_LINE_CHANNEL_ID");
 const owner=defineString("MEMBER_OWNER_LINE_UID");
 const mutationGate=defineString("MEMBER_MUTATIONS_ENABLED",{default:"false"});
+const rewardsFirstMonth=defineString("MEMBER_REWARDS_V2_FIRST_MONTH",{default:""});
 const closeAdmin=defineString("MEMBER_MONTH_CLOSE_ADMIN_UID",{default:""});
 async function verifyLine(idToken,clientId){
  return require("./verify-line").verifyLineToken(idToken,clientId,{
@@ -17,9 +18,23 @@ async function verifyLine(idToken,clientId){
  });
 }
 function callable(fn,write=true){return onCall({serviceAccount:runtimeServiceAccount,region:"asia-southeast1",timeoutSeconds:540,maxInstances:5},async r=>{
-  try{if(write)require("./release-controls").requireMutationGate(mutationGate.value());return await fn(buildService({db:admin.firestore(),auth:admin.auth(),FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,channelId:channel.value(),ownerUid:owner.value(),verifyLine}),r.auth?.uid,r.data||{});}
+  try{if(write)require("./release-controls").requireMutationGate(mutationGate.value());return await fn(buildService({db:admin.firestore(),auth:admin.auth(),FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,channelId:channel.value(),ownerUid:owner.value(),verifyLine,rewardsFirstMonth:rewardsFirstMonth.value()}),r.auth?.uid,r.data||{});}
   catch(e){if(e instanceof HttpsError)throw e;const known=["unauthenticated","invalid-argument","permission-denied","failed-precondition","already-exists"].includes(e.code);throw new HttpsError(known?e.code:"unavailable",known?e.message:"Service unavailable; retry safely");}
 });}
+const rewardsEnabled=defineString("MEMBER_REWARDS_V2_ENABLED",{default:"false"});
+function rewardsCall(method,write){
+ return callable((s,u,d)=>{
+  if(rewardsEnabled.value()!=="true"||!/^\d{4}-(0[1-9]|1[0-2])$/.test(rewardsFirstMonth.value())||require("./service").monthAt(new Date())<rewardsFirstMonth.value()){
+   if(method==="list")return {enabled:false};
+   throw new HttpsError("failed-precondition","ระบบแลกรางวัลยังไม่เปิด");
+  }
+  return require("./rewards-v2").buildRewards({db:admin.firestore(),FieldValue:admin.firestore.FieldValue,identity:s.identity,now:()=>new Date()})[method](u,d);
+ },write);
+}
+exports.memberRewardCatalog=rewardsCall("list",false);
+exports.memberRewardSave=rewardsCall("save",true);
+exports.memberRewardTicket=rewardsCall("issue",true);
+exports.memberRewardConfirm=rewardsCall("redeem",true);
 exports.memberLineLogin=callable((s,u,d)=>s.exchange(d.idToken),false);
 exports.memberRegister=callable((s,u,d)=>s.register(u,d));
 exports.memberSession=callable((s,u)=>s.session(u),false);
@@ -37,7 +52,7 @@ exports.memberScheduledClose=onSchedule({
  maxInstances:1,concurrency:1,retryCount:3,minBackoffSeconds:60,maxBackoffSeconds:300
 },async()=>{
  const {runMonthCycle}=require("./month-cycle");
- const s=buildService({db:admin.firestore(),auth:admin.auth(),FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,channelId:channel.value(),ownerUid:owner.value(),verifyLine});
+ const s=buildService({db:admin.firestore(),auth:admin.auth(),FieldValue:admin.firestore.FieldValue,FieldPath:admin.firestore.FieldPath,channelId:channel.value(),ownerUid:owner.value(),verifyLine,rewardsFirstMonth:rewardsFirstMonth.value()});
  try{
   const result=await runMonthCycle({db:admin.firestore(),service:s,ownerUid:closeAdmin.value(),enabled:mutationGate.value()});
   require("firebase-functions/logger").info("member_month_cycle",{state:result.state,month:result.month||"",previous:result.previous||""});

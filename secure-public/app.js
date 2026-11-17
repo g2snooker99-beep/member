@@ -61,12 +61,79 @@ async function refresh(){
  for(const id of ["qr","history","rewards","leaderboard","results"])$(id).replaceChildren();
  if(!session.active){setView("home",false);row("history","บัญชีถูกปิดใช้งาน กรุณาติดต่อแอดมิน");return;}
  $("staff").hidden=!session.capabilities?.staff;$("admin").hidden=!session.capabilities?.admin;
+ if(session.capabilities?.admin)void call("memberRewardCatalog",{manage:true}).then(d=>{if(d?.rewards)$("manageRewardShop").hidden=false;},()=>{});
  if(!$("historyMonth").value)$("historyMonth").value=monthAt(new Date());
  $("historyMonth").max=monthAt(new Date());
  if(!$("boardMonth").value)$("boardMonth").value=monthAt(new Date());$("boardMonth").max=monthAt(new Date());
  void loadHomeClub();
  setView(currentView,false);await loadView(currentView);
 }
+const rewardPools={monthly:"แต้มรายเดือน",carry:"แต้มสะสม"};
+const shopButton=(label,fn,style="primary")=>{
+ const b=node("button",label,style);b.type="button";b.onclick=fn;return b;
+};
+async function renderRewardShop(version){
+ const root=$("rewardShop");
+ let result;
+ try{result=await call("memberRewardCatalog",{});}
+ catch(e){if(!["not-found","permission-denied","internal","unavailable"].includes(e.code))throw e;return;}
+ if(version!==profileVersion||result?.enabled===false||!result?.balances)return;
+ root.hidden=false;root.replaceChildren();
+ const score=node("section","","points-card");
+ score.append(node("h3","แต้มที่ใช้แลกได้"),node("p",rewardPools.carry+" "+result.balances.carry+" แต้ม"),node("p",rewardPools.monthly+" "+result.balances.monthly+" แต้ม · หมดสิ้นเดือน"));
+ root.append(score);
+ if(!result.rewards.length)root.append(node("p","ยังไม่มีรางวัลให้แลก","muted"));
+ for(const r of result.rewards){
+  const box=node("article","","surface reward-card");
+  box.append(node("h3",r.name),node("p",r.cost+" "+rewardPools[r.pool]+" · เหลือ "+r.remaining+" จาก "+r.quota+" สิทธิ์","muted"));
+  const qr=node("div","","reward-code");qr.hidden=true;
+  const button=shopButton(r.remaining===0?"สิทธิ์เดือนนี้เต็มแล้ว":r.personalRemaining===0?"ใช้สิทธิ์ครบแล้ว":r.canRedeem?"แลก":"แต้มยังไม่พอ",()=>action(async()=>{
+   if(!qr.hidden){qr.hidden=true;button.textContent="แลก";return;}
+   const t=await call("memberRewardTicket",{rewardId:r.id});
+   qr.replaceChildren(node("p","ใช้ "+t.cost+" แต้ม · หลังยืนยันเหลือ "+t.remaining+" แต้ม"),node("p","ให้พนักงานสแกนภายใน 5 นาที แต้มจะถูกหักเมื่อยืนยัน","muted"));
+   const code=node("div");qr.append(code);new QRCode(code,{text:"g2shop:"+t.token,width:200,height:200});
+   qr.hidden=false;button.textContent="ซ่อน QR";
+  }));
+  button.disabled=!r.canRedeem;
+  box.append(button,qr);root.append(box);
+ }
+}
+async function showShopScan(token){
+ const root=$("rewardShopScan");root.hidden=false;root.replaceChildren();
+ const info=await call("memberRewardConfirm",{token});
+ if(info.alreadyUsed){root.append(node("p","ใช้ QR นี้แล้ว"));return;}
+ root.append(node("p",info.name+" · "+info.cost+" "+rewardPools[info.pool]),node("p","สมาชิก: "+info.memberName));
+ root.append(shopButton("ยืนยันหักแต้มและใช้สิทธิ์",()=>action(async()=>{
+  const done=await call("memberRewardConfirm",{token,confirm:true});
+  root.replaceChildren(node("p",done.alreadyUsed?"ใช้ QR นี้แล้ว":"ใช้สิทธิ์สำเร็จ"));
+ })));
+}
+async function showShopAdmin(){
+ const root=$("rewardShopAdmin"),d=await call("memberRewardCatalog",{manage:true});
+ root.hidden=false;root.replaceChildren();
+ if(!d?.rewards){root.append(node("p","ระบบแลกรางวัลยังไม่เปิด"));return;}
+ const form=node("form"),chosen=node("select");
+ function bind(label,input){const wrapped=node("label",label);wrapped.append(input);form.append(wrapped);}
+ function input(type){const v=node("input");v.type=type;return v;}
+ function option(value,label){const o=node("option",label);o.value=value;return o;}
+ chosen.append(option("","เพิ่มรางวัลใหม่"),...d.rewards.map(r=>option(r.id,r.name)));bind("เลือกรางวัล",chosen);
+ const name=input("text");name.required=true;name.maxLength=80;bind("ชื่อรางวัล",name);
+ const pool=node("select");for(const [k,v] of Object.entries(rewardPools))pool.append(option(k,v));bind("ประเภทแต้ม",pool);
+ const fields=["แต้มที่ใช้","โควตารวมต่อเดือน","โควตาต่อคนต่อเดือน"].map(label=>{const v=input("number");v.required=true;v.min=1;v.max=100000;bind(label,v);return v;});
+ const active=input("checkbox");bind("เปิดให้แลก",active);
+ chosen.onchange=()=>{
+  const r=d.rewards.find(r=>r.id===chosen.value);
+  name.value=r?.name||"";pool.value=r?.pool||"carry";active.checked=r?.active??false;
+  ["cost","quota","perMember"].forEach((k,i)=>{fields[i].value=r?.[k]??"";});
+ };chosen.onchange();
+ const submit=shopButton("บันทึกรางวัล",null);submit.type="submit";form.append(submit);
+ form.onsubmit=e=>{e.preventDefault();void action(async()=>{
+  await call("memberRewardSave",{rewardId:chosen.value||undefined,name:name.value,pool:pool.value,cost:Number(fields[0].value),quota:Number(fields[1].value),perMember:Number(fields[2].value),active:active.checked});
+  await showShopAdmin();return "บันทึกรางวัลแล้ว";
+ });};
+ root.append(form);
+}
+
 async function loadView(view){
  if(view==="home"||loadedViews[view])return;
  if(loadingViews[view])return loadingViews[view];
@@ -77,6 +144,7 @@ async function loadView(view){
   }else if(view==="history"){
    if(!$("historyMonths").hidden)await renderMonthlyHistory();else await loadHistory();
   }else if(view==="rewards"){
+   $("rewardShop").hidden=true;void renderRewardShop(version).catch(()=>{});
    $("rewards").replaceChildren();empty("rewards","กำลังตรวจสิทธิ์ของคุณ…");
    const docs=await db.collection("monthlyRewards").where("userId","==",uid).limit(100).get();
    if(version!==profileVersion)return;
@@ -416,15 +484,21 @@ async function restartLineLogin(){
 
 async function action(fn){
   if(busy)return;busy=true;
-  const buttons=Array.from(document.querySelectorAll("button"));buttons.forEach(b=>b.disabled=true);
+  const buttons=Array.from(document.querySelectorAll("button"));const enabled=buttons.filter(b=>!b.disabled);enabled.forEach(b=>b.disabled=true);
   try{status("กำลังดำเนินการ…");const message=await fn();status(typeof message==="string"?message:"สำเร็จ");}
   catch(e){if(e.code==="permission-denied"||e.code==="unauthenticated"){$("staff").hidden=true;$("admin").hidden=true;}status(e.message||"เชื่อมต่อไม่ได้ กรุณาลองรายการเดิมอีกครั้ง");}
-  finally{busy=false;buttons.forEach(b=>b.disabled=false);}
+  finally{busy=false;enabled.forEach(b=>b.disabled=false);}
 }
+$("manageRewardShop").onclick=()=>action(showShopAdmin);
 $("scan").onclick=()=>action(async()=>{
   if(scanner)await scanner.clear();
   scanner=new Html5QrcodeScanner("reader",{fps:10,qrbox:220},false);
   scanner.render(async value=>{
+    if(/^g2shop:[a-f0-9]{48}$/.test(value)){
+      const activeScanner=scanner;if(!activeScanner)return;scanner=null;
+      await activeScanner.clear();
+      void action(()=>showShopScan(value.slice(7)));return;
+    }
     if(/^U[0-9a-f]{32}$/i.test(value))$("target").value=value;
     else if(value.startsWith("g2reward:")){$("rewardId").value=value.slice(9);$("billRef").value="";}
     else {status("QR ไม่ใช่บัตรสมาชิกหรือสิทธิ์รางวัล G2");return;}
