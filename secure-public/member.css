@@ -216,22 +216,12 @@ input::placeholder{color:#8b9485}
 .bottom-nav [hidden]{display:none!important}
 
 /* Rewards shop: separate balances and a dedicated QR screen. */
-.g2-shop-view .profile-heading,.g2-ticket-open .status-bar,.g2-ticket-open #memberNav,
+.g2-ticket-open .status-bar,.g2-ticket-open #memberNav,
 .g2-ticket-open #view-rewards > .page-heading,.g2-ticket-open #rewardShop,.g2-ticket-open #rewards{display:none}
-.g2-shop-view .brand-header{clip-path:none;border-radius:0 0 28px 28px;justify-content:center;min-height:96px;background-color:#103c2a;background-image:linear-gradient(150deg,#165039,#092d20);border-color:#bf9a53}
-.g2-shop-view .brand-mark,.g2-shop-view .club-label{display:none}
-.g2-shop-view .brand{text-align:center;color:#e8cc83}
-.g2-shop-view .brand strong{font:700 clamp(24px,7vw,35px)/1.05 Georgia,serif;letter-spacing:.03em}
-.g2-shop-view .brand small{color:#ede0b9;margin-top:7px;letter-spacing:.3em}
 .g2-shop-view #view-rewards > .page-heading,.g2-reward-title{text-align:center}
-.g2-shop-view #view-rewards > .page-heading .eyebrow{display:none}
-.g2-reward-title,.g2-shop-view #rewardsHeading{color:#103c2a;font-weight:850;margin:0 0 12px;font-size:clamp(23px,6vw,31px)}
+#card .page-heading h2,.g2-reward-title{color:#103c2a;font-weight:850;margin:0 0 12px;font-size:clamp(23px,6vw,31px)}
 .g2-rewards-balance{color:#fff7e1;border:1px solid #bd9955;background-image:linear-gradient(90deg,#0a3927 0%,#0a3927e8 61%,#0a392755),url("club-banner.svg");padding:17px}
 .g2-rewards-balance h3{margin:0 0 12px}
-.g2-wallets{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.g2-wallet{display:grid;gap:0;padding:7px 12px;border:1px solid #d1b67c66;background:#072b1ee8;border-radius:12px}
-.g2-wallet span,.g2-wallet small{color:#f5e8c4}
-.g2-wallet strong{font:700 clamp(30px,10vw,48px)/1.1 Georgia,serif;color:#f0ce80}
 .g2-shop-reward{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;padding:12px;border-color:#e6d9c0;background:#fdf8ee}
 .g2-shop-reward .g2-r-info h3,.g2-shop-reward .g2-r-info p{margin:0}
 .g2-r-icon{display:inline-grid;place-items:center;width:43px;height:43px;border-radius:13px;background:#e6eddf;color:#175338;font-size:23px;font-weight:800}
@@ -249,19 +239,13 @@ input::placeholder{color:#8b9485}
 #rewardTicketBack{min-height:46px;margin-top:14px}
 
 /* Rewards tab styling follows the approved G2 shop reference. */
-body.g2-shop-view{background:#f5efe4;color:#103c2a}
-.g2-shop-view .brand-header{background:linear-gradient(155deg,#164633,#092f20);border-bottom:2px solid #bc9a54;border-radius:0 0 50% 16% / 0 0 18% 14%;box-shadow:0 3px 8px #4834121c;margin-bottom:10px;min-height:76px}
-.g2-shop-view .brand strong{color:#e5c579;font-size:clamp(24px,7vw,33px)}
-.g2-shop-view .brand small{display:none}
-.g2-shop-view .brand .g2-brand-locale{display:block;letter-spacing:.28em;margin-top:4px;font-size:10px}
 .g2-shop-view .status-bar{margin:0;padding:0;border:0;background:none;position:absolute;clip-path:inset(50%);width:1px;height:1px;overflow:hidden}
 .g2-shop-view .status-bar:focus-within,.g2-shop-view .status-bar:has(#status[data-error="true"]){position:static;clip-path:none;width:auto;height:auto;margin-bottom:8px;padding:5px 8px}
-.g2-shop-view #view-rewards > .page-heading{margin:0 0 10px}
 .g2-shop-view #view-rewards > .page-heading .muted{display:none}
-.g2-reward-title,.g2-shop-view #rewardsHeading{display:flex;align-items:center;justify-content:center;gap:8px;margin:0;line-height:1.35;white-space:nowrap}
-.g2-reward-title::before,.g2-reward-title::after,.g2-shop-view #rewardsHeading::before,.g2-shop-view #rewardsHeading::after{content:"";height:1px;flex:1;max-width:76px;background:linear-gradient(90deg,#d7b77740,#c4a466)}
+#card .page-heading h2,.g2-reward-title{display:flex;align-items:center;justify-content:center;gap:8px;margin:0;line-height:1.35;white-space:nowrap}
+.g2-reward-title::before,.g2-reward-title::after,#card .page-heading h2::before,#card .page-heading h2::after{content:"";height:1px;flex:1;max-width:76px;background:linear-gradient(90deg,#d7b77740,#c4a466)}
 .g2-shop-view .item-list{gap:8px}
-.g2-rewards-balance{background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20168%22%3E%3Cdefs%3E%3CradialGradient%20id%3D%22f%22%20cx%3D%22.64%22%20cy%3D%22.22%22%20r%3D%22.74%22%3E%3Cstop%20stop-color%3D%22%23226b48%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23073421%22%2F%3E%3C%2FradialGradient%3E%3CradialGradient%20id%3D%22r%22%20cx%3D%22.32%22%20cy%3D%22.25%22%20r%3D%22.76%22%3E%3Cstop%20stop-color%3D%22%23ff8282%22%2F%3E%3Cstop%20offset%3D%22.28%22%20stop-color%3D%22%23cf1d31%22%2F%3E%3Cstop%20offset%3D%22.67%22%20stop-color%3D%22%238c0b1f%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%2338060e%22%2F%3E%3C%2FradialGradient%3E%3ClinearGradient%20id%3D%22cue%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23fff1bd%22%2F%3E%3Cstop%20offset%3D%22.4%22%20stop-color%3D%22%23dcb479%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23845322%22%2F%3E%3C%2FlinearGradient%3E%3Cfilter%20id%3D%22n%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%22.83%22%20numOctaves%3D%223%22%20stitchTiles%3D%22stitch%22%2F%3E%3C%2Ffilter%3E%3C%2Fdefs%3E%3Cpath%20fill%3D%22url(%23f)%22%20d%3D%22M0%200h400v168H0z%22%2F%3E%3Cpath%20opacity%3D%22.12%22%20filter%3D%22url(%23n)%22%20d%3D%22M0%200h400v168H0z%22%2F%3E%3Cellipse%20cx%3D%22316%22%20cy%3D%2255%22%20rx%3D%2219%22%20ry%3D%226%22%20fill%3D%22%23031c12%22%20opacity%3D%22.85%22%2F%3E%3Cellipse%20cx%3D%22350%22%20cy%3D%2275%22%20rx%3D%2219%22%20ry%3D%226%22%20fill%3D%22%23031c12%22%20opacity%3D%22.85%22%2F%3E%3Ccircle%20cx%3D%22312%22%20cy%3D%2240%22%20r%3D%2217%22%20fill%3D%22url(%23r)%22%2F%3E%3Ccircle%20cx%3D%22346%22%20cy%3D%2260%22%20r%3D%2217%22%20fill%3D%22url(%23r)%22%2F%3E%3Cg%20transform%3D%22translate(327%20154)%20rotate(-48)%22%3E%3Crect%20x%3D%220%22%20y%3D%222%22%20width%3D%22130%22%20height%3D%2210%22%20rx%3D%224%22%20fill%3D%22%23042618%22%20opacity%3D%22.65%22%2F%3E%3Cpath%20d%3D%22M0%200%20130-2V8L0%207Z%22%20fill%3D%22url(%23cue)%22%2F%3E%3Cpath%20d%3D%22M0%200h6v7H0z%22%20fill%3D%22%23356582%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");background-size:cover;background-position:center;box-shadow:0 4px 9px #20361d2b;border-radius:15px;padding:12px 14px;color:#fff9e8}
+.g2-rewards-balance{background-image:var(--club-felt);background-size:cover;background-position:center;box-shadow:0 4px 9px #20361d2b;border-radius:15px;padding:12px 14px;color:#fff9e8}
 .g2-rewards-balance h3{font-size:14px;margin:0}
 .g2-carry-number{margin:0;display:flex;align-items:baseline;gap:8px;color:#f4d58f}
 .g2-carry-number strong{font:700 clamp(45px,14vw,68px)/.98 Georgia,serif}
@@ -283,11 +267,10 @@ body.g2-shop-view{background:#f5efe4;color:#103c2a}
 .g2-shop-reward .muted{font-size:10px}
 .g2-shop-reward .primary{min-height:40px;padding:5px 10px;font-size:clamp(10px,3vw,14px);box-shadow:0 2px 3px #44351d2a;background:#154d34;color:#fffbe9}
 .g2-shop-reward .primary:disabled{background:#d6d4cf;color:#44443e;box-shadow:none}
-.g2-shop-view #memberNav{background:#faf4e8;border-color:#d9c9aa;grid-template-columns:repeat(4,minmax(0,1fr));box-shadow:0 -4px 12px #493a2612}
-.g2-shop-view #memberNav button{color:#153f2a;position:relative;min-height:52px}
-.g2-shop-view #memberNav button[aria-current="page"]{background:none;color:#103d28;font-weight:850}
-.g2-shop-view #memberNav button[aria-current="page"]::after{content:"";position:absolute;bottom:0;left:20%;right:20%;height:3px;background:#144c31;border-radius:99px}
-.g2-shop-view #nav-home{order:1}.g2-shop-view #nav-rewards{order:2}.g2-shop-view #nav-history{order:3}.g2-shop-view #nav-qr{order:4}
+#memberNav{background:#faf4e8;border-color:#d9c9aa;box-shadow:0 -4px 12px #493a2612}
+#memberNav button{color:#153f2a;position:relative;min-height:52px}
+#memberNav button[aria-current="page"]{background:none;color:#103d28;font-weight:850}
+#memberNav button[aria-current="page"]::after{content:"";position:absolute;bottom:0;left:20%;right:20%;height:3px;background:#144c31;border-radius:99px}
 .g2-ticket-screen .g2-reward-title{margin:0 0 12px}
 .g2-ticket-card{background:linear-gradient(180deg,#fffaf1,#f9f0e2);border-color:#e3d3b7;box-shadow:0 4px 10px #4e3e2422;gap:8px;padding:17px 13px;border-radius:17px}
 .g2-ticket-card>.g2-r-icon{width:56px;height:56px}
@@ -296,14 +279,43 @@ body.g2-shop-view{background:#f5efe4;color:#103c2a}
 #rewardTicketBack{max-width:100%;background:none;border:2px solid #174530;border-radius:15px;color:#174530;font-size:16px}
 @media(max-width:360px){.g2-reward-title{font-size:20px}.g2-shop-reward{grid-template-columns:36px minmax(0,1fr) auto}.g2-shop-reward .g2-r-icon{width:35px;height:35px}}
 
-.g2-shop-view #nav-home>span:first-child{width:23px;height:23px;color:transparent;background:#174630;mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M3%2011%2012%203l9%208m-16-1v10h5v-6h4v6h5V10%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat;-webkit-mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M3%2011%2012%203l9%208m-16-1v10h5v-6h4v6h5V10%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat}
+#nav-home>span:first-child{width:23px;height:23px;color:transparent;background:#174630;mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M3%2011%2012%203l9%208m-16-1v10h5v-6h4v6h5V10%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat;-webkit-mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M3%2011%2012%203l9%208m-16-1v10h5v-6h4v6h5V10%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat}
 
-.g2-shop-view #nav-rewards>span:first-child{width:23px;height:23px;color:transparent;background:#174630;mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M4%2010h16v4H4zm2%204v7h12v-7m-6-4v11m0-11C5%2010%206%204%209%205l3%205c7%200%206-6%203-5z%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat;-webkit-mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M4%2010h16v4H4zm2%204v7h12v-7m-6-4v11m0-11C5%2010%206%204%209%205l3%205c7%200%206-6%203-5z%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat}
+#nav-rewards>span:first-child{width:23px;height:23px;color:transparent;background:#174630;mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M4%2010h16v4H4zm2%204v7h12v-7m-6-4v11m0-11C5%2010%206%204%209%205l3%205c7%200%206-6%203-5z%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat;-webkit-mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M4%2010h16v4H4zm2%204v7h12v-7m-6-4v11m0-11C5%2010%206%204%209%205l3%205c7%200%206-6%203-5z%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat}
 
-.g2-shop-view #nav-history>span:first-child{width:23px;height:23px;color:transparent;background:#174630;mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M12%207v5l4%202m5-2a9%209%200%201%201-18%200%209%209%200%200%201%2018%200%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat;-webkit-mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M12%207v5l4%202m5-2a9%209%200%201%201-18%200%209%209%200%200%201%2018%200%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat}
+#nav-history>span:first-child{width:23px;height:23px;color:transparent;background:#174630;mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M12%207v5l4%202m5-2a9%209%200%201%201-18%200%209%209%200%200%201%2018%200%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat;-webkit-mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M12%207v5l4%202m5-2a9%209%200%201%201-18%200%209%209%200%200%201%2018%200%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat}
 
-.g2-shop-view #nav-qr>span:first-child{width:23px;height:23px;color:transparent;background:#174630;mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M16%207a4%204%200%201%201-8%200%204%204%200%200%201%208%200ZM4%2021v-2c0-3%203-5%208-5s8%202%208%205v2Z%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat;-webkit-mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M16%207a4%204%200%201%201-8%200%204%204%200%200%201%208%200ZM4%2021v-2c0-3%203-5%208-5s8%202%208%205v2Z%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat}
+#nav-qr>span:first-child{width:23px;height:23px;color:transparent;background:#174630;mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M16%207a4%204%200%201%201-8%200%204%204%200%200%201%208%200ZM4%2021v-2c0-3%203-5%208-5s8%202%208%205v2Z%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat;-webkit-mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M16%207a4%204%200%201%201-8%200%204%204%200%200%201%208%200ZM4%2021v-2c0-3%203-5%208-5s8%202%208%205v2Z%22%20fill%3D%22none%22%20stroke%3D%22white%22%20stroke-width%3D%221.6%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat}
 
-.brand .g2-brand-locale{display:none}
-.g2-shop-view .brand .g2-brand-locale{display:block}
-.g2-shop-view #rewardNavLabel{font-size:inherit;line-height:inherit}
+
+/* The approved rewards palette and components are shared by the member portal. */
+:root{--bg:#f5efe4;--surface:#fffaf1;--border:#e3d3b7;--text:#103c2a;--muted:#53665a;--gold:#9c742e;--radius:15px;--club-card:linear-gradient(180deg,#fffaf1,#f8f0e2);--club-felt:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20400%20168%22%3E%3Cdefs%3E%3CradialGradient%20id%3D%22f%22%20cx%3D%22.64%22%20cy%3D%22.22%22%20r%3D%22.74%22%3E%3Cstop%20stop-color%3D%22%23226b48%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23073421%22%2F%3E%3C%2FradialGradient%3E%3CradialGradient%20id%3D%22r%22%20cx%3D%22.32%22%20cy%3D%22.25%22%20r%3D%22.76%22%3E%3Cstop%20stop-color%3D%22%23ff8282%22%2F%3E%3Cstop%20offset%3D%22.28%22%20stop-color%3D%22%23cf1d31%22%2F%3E%3Cstop%20offset%3D%22.67%22%20stop-color%3D%22%238c0b1f%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%2338060e%22%2F%3E%3C%2FradialGradient%3E%3ClinearGradient%20id%3D%22cue%22%20x2%3D%220%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%23fff1bd%22%2F%3E%3Cstop%20offset%3D%22.4%22%20stop-color%3D%22%23dcb479%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%23845322%22%2F%3E%3C%2FlinearGradient%3E%3Cfilter%20id%3D%22n%22%3E%3CfeTurbulence%20type%3D%22fractalNoise%22%20baseFrequency%3D%22.83%22%20numOctaves%3D%223%22%20stitchTiles%3D%22stitch%22%2F%3E%3C%2Ffilter%3E%3C%2Fdefs%3E%3Cpath%20fill%3D%22url(%23f)%22%20d%3D%22M0%200h400v168H0z%22%2F%3E%3Cpath%20opacity%3D%22.12%22%20filter%3D%22url(%23n)%22%20d%3D%22M0%200h400v168H0z%22%2F%3E%3Cellipse%20cx%3D%22316%22%20cy%3D%2255%22%20rx%3D%2219%22%20ry%3D%226%22%20fill%3D%22%23031c12%22%20opacity%3D%22.85%22%2F%3E%3Cellipse%20cx%3D%22350%22%20cy%3D%2275%22%20rx%3D%2219%22%20ry%3D%226%22%20fill%3D%22%23031c12%22%20opacity%3D%22.85%22%2F%3E%3Ccircle%20cx%3D%22312%22%20cy%3D%2240%22%20r%3D%2217%22%20fill%3D%22url(%23r)%22%2F%3E%3Ccircle%20cx%3D%22346%22%20cy%3D%2260%22%20r%3D%2217%22%20fill%3D%22url(%23r)%22%2F%3E%3Cg%20transform%3D%22translate(327%20154)%20rotate(-48)%22%3E%3Crect%20x%3D%220%22%20y%3D%222%22%20width%3D%22130%22%20height%3D%2210%22%20rx%3D%224%22%20fill%3D%22%23042618%22%20opacity%3D%22.65%22%2F%3E%3Cpath%20d%3D%22M0%200%20130-2V8L0%207Z%22%20fill%3D%22url(%23cue)%22%2F%3E%3Cpath%20d%3D%22M0%200h6v7H0z%22%20fill%3D%22%23356582%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E")}
+body{background:var(--bg);color:var(--text)}
+.brand-header{justify-content:center;clip-path:none;min-height:96px;margin-bottom:14px;background:linear-gradient(155deg,#164633,#092f20);border-bottom:2px solid #bc9a54;border-radius:0 0 50% 16% / 0 0 18% 14%;box-shadow:0 3px 8px #4834121c}
+.brand{text-align:center}
+.brand strong{color:#e5c579;font:700 clamp(24px,7vw,33px)/1.05 Georgia,serif;letter-spacing:.03em}
+.brand small{color:#ede0b9;letter-spacing:.28em;margin-top:4px;font-size:10px}
+#card .page-heading{text-align:center;margin:0 0 14px}
+#card .page-heading h2,.g2-reward-title{white-space:normal;text-wrap:balance}
+#card .page-heading .eyebrow{display:none}
+#card .page-heading .muted{margin:4px 0 0}
+.g2-shop-view #view-rewards>.page-heading{margin-bottom:10px}
+.surface,.ranking-row,.status-bar{background:var(--club-card);border-color:var(--border);box-shadow:0 3px 6px #47371d19}
+.primary,.history-tabs [aria-pressed="true"]{background:#154d34;color:#fffbe9;border-color:#ad934a}
+.primary{border-radius:999px}
+.secondary{background:#fdf7eb;color:#174530;border-color:#9e8b56}
+.primary:disabled,.secondary:disabled{cursor:default}
+input,select{background:#fffcf5;border-color:#cab999}
+.points-card,.history-totals,.board-own{background:#113d2c var(--club-felt) center/cover;border-color:#bd9955;color:#fff9e8;box-shadow:0 4px 9px #20361d2b}
+.points-card .score-line strong,.history-totals h3{color:#f4d58f;font-family:Georgia,serif}
+.points-card-top,.points-month,.points-card-footer>span{max-width:70%;overflow-wrap:anywhere}
+.board-own strong,.board-own p,.history-totals h3,.history-totals p{max-width:73%}
+.ranking-row.own{background:#fff0ba;border-color:#8e792f}
+.qr-card{text-align:center}
+.qr-frame{border:1px solid #e7dbc3;border-radius:9px}
+.operator-panel>h2{color:#103c2a;border-bottom:1px solid #dac49d;padding-bottom:8px}
+.operator-panel form,.operator-panel #rewardShopScan:not([hidden]){background:#fffaf1;border:1px solid var(--border);border-radius:13px;padding:12px;margin:12px 0}
+#memberNav button span:not(:first-child){font-size:inherit;line-height:inherit}
+#nav-board>span:first-child{width:23px;height:23px;color:transparent;background:#174630;mask:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22black%22%20stroke-width%3D%221.7%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M8%203h8v8a4%204%200%200%201-8%200V3ZM8%205H4v2a4%204%200%200%200%204%204m8-6h4v2a4%204%200%200%201-4%204m-4%204v4m-4%202h8%22%2F%3E%3C%2Fsvg%3E") center/contain no-repeat}
+#rewardTicketBack{background:transparent}
+@media(max-width:360px){.brand-header{min-height:80px}#card .page-heading h2,.g2-reward-title{font-size:20px}}
