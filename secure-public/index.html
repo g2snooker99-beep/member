@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#124a34">
 <title>สมาชิก G2 Snooker</title>
-<link rel="stylesheet" href="member.css?v=20261027-sport1">
+<link rel="stylesheet" href="member.css?v=20261117-rewardsscreen">
 <script defer src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js"></script>
 <script defer src="https://www.gstatic.com/firebasejs/11.0.2/firebase-auth-compat.js"></script>
@@ -14,7 +14,7 @@
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script defer src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script defer src="config.js"></script>
-<script defer src="app.js?v=20261117-rewards2"></script>
+<script defer src="app.js?v=20261117-rewardsscreen"></script>
 </head>
 <body>
 <div class="app-shell">
@@ -36,7 +36,12 @@
 <section class="surface how-to"><span class="section-icon" aria-hidden="true">▦</span><div><h2>พร้อมเล่น พร้อมสะสมแต้ม</h2><p class="muted">เปิดบัตรสมาชิกให้พนักงานสแกน หากแต้มยังไม่อัปเดต ให้กดอัปเดตคะแนนหลังบันทึกรายการ</p></div></section>
 </div>
 <div id="view-qr" class="member-view" hidden><div class="page-heading"><p class="eyebrow">MEMBER CARD</p><h2>บัตรสมาชิกของคุณ</h2><p class="muted">แสดง QR นี้ให้พนักงานสแกน</p></div><section class="surface qr-card"><div class="qr-frame"><div id="qr"></div></div><p id="qrMemberId" class="qr-member-id"></p><p class="muted">ใช้บัตรของคุณเองทุกครั้งที่รับแต้ม</p></section></div>
-<div id="view-rewards" class="member-view" hidden><div class="page-heading"><p class="eyebrow">YOUR REWARDS</p><h2 id="rewardsHeading">สิทธิ์ของฉัน</h2><p class="muted">ตรวจสถานะและแสดง QR ให้พนักงานก่อนใช้สิทธิ์</p></div><div id="rewardShop" class="item-list" hidden></div><div id="rewards" class="item-list" aria-live="polite"></div></div>
+<div id="view-rewards" class="member-view" hidden><div class="page-heading"><p class="eyebrow">YOUR REWARDS</p><h2 id="rewardsHeading">สิทธิ์ของฉัน</h2><p class="muted">ตรวจสถานะและแสดง QR ให้พนักงานก่อนใช้สิทธิ์</p></div><div id="rewardShop" class="item-list" hidden></div><div id="rewards" class="item-list" aria-live="polite"></div>
+<section id="rewardTicketScreen" class="g2-ticket-screen" hidden aria-labelledby="rewardTicketHeading">
+<h2 id="rewardTicketHeading" class="g2-reward-title" tabindex="-1">แสดง QR ให้พนักงาน</h2>
+<div class="surface g2-ticket-card"><span id="rewardTicketIcon" class="g2-r-icon" aria-hidden="true"></span><h3 id="rewardTicketName"></h3><p id="rewardTicketDetails"></p><div id="rewardTicketCode" class="g2-ticket-code" role="img" aria-label="QR สำหรับให้พนักงานสแกน"></div><p id="rewardTicketValidity" class="muted" role="status"></p><p class="g2-ticket-confirmation">ตัดแต้มเมื่อพนักงานยืนยัน</p></div>
+<button id="rewardTicketBack" class="secondary wide" type="button">กลับไปหน้ารางวัล</button>
+</section></div>
 <div id="view-history" class="member-view" hidden><div class="page-heading"><p class="eyebrow">POINTS HISTORY</p><h2>ประวัติรวม</h2><p class="muted">แต้มและรายการที่บันทึกไว้ของคุณ</p></div><div class="history-tabs" role="group" aria-label="รูปแบบประวัติ"><button id="historyTransactions" class="secondary" type="button" aria-pressed="true">รายการแต้ม</button><button id="historyMonthly" class="secondary" type="button" aria-pressed="false">สรุปรายเดือน</button></div><div id="historyMonths" class="item-list" hidden></div><div id="historyTransactionsPanel"><label for="historyRange">ช่วงข้อมูล</label><select id="historyRange"><option value="month">เลือกเดือน</option><option value="all">ทุกเดือน</option></select><section id="historyMonthControls" class="surface"><label for="historyMonth">รอบเดือนที่ต้องการดู</label><input id="historyMonth" type="month"><div class="button-row"><button id="historyPrevious" class="secondary" type="button">‹ เดือนก่อน</button><button id="historyNext" class="secondary" type="button">เดือนถัดไป ›</button><button id="historyCurrent" class="text-button" type="button">เดือนนี้</button></div></section><section class="surface history-totals"><h3 id="historyTotal" aria-live="polite">—</h3><p id="historySummaryNote" class="muted"></p></section><p id="historyCount" class="muted"></p><div id="history" class="surface item-list" aria-live="polite"></div><button id="historyMore" class="secondary" type="button" hidden>โหลดรายการเพิ่ม</button></div></div>
 <div id="view-board" class="member-view" hidden><div class="page-heading"><p class="eyebrow">G2 RANKING</p><h2>อันดับสมาชิก</h2><p class="muted">ดูอันดับของคุณและส่วนต่างคะแนน</p></div><label for="boardMonth">รอบเดือน</label><input id="boardMonth" type="month"><button id="boardLoad" class="secondary wide" type="button">ดูอันดับเดือนนี้</button><section class="board-own surface"><strong id="boardOwn">กำลังตรวจอันดับ…</strong><p id="boardScope" class="muted"></p></section><div class="ranking-head" aria-hidden="true"><span>อันดับ</span><span>สมาชิก</span><span>แต้ม</span><span>เทียบคุณ</span></div><div id="leaderboard" class="item-list" aria-live="polite"></div><p id="boardCount" class="muted"></p><button id="boardMore" class="secondary wide" type="button" hidden>ดูอันดับถัดไป</button><p class="ranking-key muted">เทียบคุณ: + คือแต้มมากกว่า / − คือแต้มน้อยกว่า</p><p id="boardNote" class="muted"></p><details class="surface"><summary>ผล Top 3 เดือนที่ผ่านมา</summary><div id="results" class="item-list"></div></details></div>
 </main>
