@@ -9,13 +9,21 @@ function bad(message){fail("invalid-argument",message);}
 const within=(n,min,max)=>Number.isSafeInteger(n)&&n>=min&&n<=max;
 const data=s=>s.exists?s.data():{};
 const count=(s,key)=>{const n=data(s)[key]??0;if(!within(n,0,Number.MAX_SAFE_INTEGER))fail("failed-precondition","ยอดข้อมูลไม่ถูกต้อง");return n;};
+function rewardImage(value){
+ if(value==="")return "";
+ if(typeof value!=="string"||value.length>32791||!/^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(value))bad("รูปสินค้าไม่ถูกต้องหรือใหญ่เกินไป");
+ const encoded=value.slice(23),bytes=Buffer.from(encoded,"base64");
+ if(bytes.length<10||bytes.length>24576||bytes.toString("base64")!==encoded||
+ bytes[bytes.length-2]!==0xff||bytes[bytes.length-1]!==0xd9)bad("รูปสินค้าไม่ถูกต้องหรือใหญ่เกินไป");
+ return value;
+}
 function rewardInput(d){
  const name=typeof d.name==="string"?d.name.trim():"";
  if(!name||name.length>80||!pools.includes(d.pool)||!within(d.cost,1,100000)||!within(d.quota,1,100000)||
  !within(d.perMember,1,d.quota)||typeof d.active!=="boolean")bad("ตรวจชื่อรางวัล แต้ม โควตา และสิทธิ์ต่อคน");
  const productId=d.productId??0,inventoryQty=d.inventoryQty??0;
  if(!within(productId,0,2147483647)||(productId?!within(inventoryQty,1,100):inventoryQty!==0))bad("ตรวจสินค้าและจำนวนตัดสต๊อก");
- return {name,pool:d.pool,cost:d.cost,quota:d.quota,perMember:d.perMember,active:d.active,productId,inventoryQty};
+ return {name,pool:d.pool,cost:d.cost,quota:d.quota,perMember:d.perMember,active:d.active,productId,inventoryQty,...(d.image===undefined?{}:{image:rewardImage(d.image)})};
 }
 function buildRewards({db,FieldValue,identity,now,inventory}){
  const doc=(collection,key)=>db.collection(collection).doc(key);
@@ -40,17 +48,27 @@ function buildRewards({db,FieldValue,identity,now,inventory}){
   const manage=d.manage===true;
   await identity(uid,manage?["admin"]:["member"]);
   const month=monthAt(now());
-  const q=manage?catalog:catalog.where("active","==",true);
+  const sort=(a,b)=>a.cost-b.cost||a.name.localeCompare(b.name,"th");
+  if(manage){
+   const [rows,products]=await Promise.all([catalog.limit(201).get(),inventory?inventory.catalog():[]]);
+   if(rows.size>200)fail("failed-precondition","รายการรางวัลเกินขีดจำกัด");
+   const rewards=rows.docs.map(row=>{
+    const r=row.data();
+    return {id:row.id,name:r.name,pool:r.pool,cost:r.cost,quota:r.quota,perMember:r.perMember,active:r.active,
+      productId:r.productId||0,inventoryQty:r.inventoryQty||0,image:r.image||""};
+   });
+   return {month,products,rewards:rewards.sort(sort)};
+  }
+  const q=catalog.where("active","==",true);
   const [rows,m,c]=await Promise.all([q.limit(201).get(),wallet(uid,"monthly",month).get(),wallet(uid,"carry",month).get()]);
   if(rows.size>200)fail("failed-precondition","รายการรางวัลเกินขีดจำกัด");
   const balances={monthly:count(m,"balance"),carry:count(c,"balance")};
   const rewards=await Promise.all(rows.docs.map(async row=>{
    const r=row.data();
    const [a,b]=await Promise.all([stock(row.id,month).get(),limit(row.id,month,uid).get()]);
-   return {...present(r,row.id,count(a,"used"),count(b,"used"),balances[r.pool]),active:r.active,...(manage?{productId:r.productId||0,inventoryQty:r.inventoryQty||0}:{})};
+   return {...present(r,row.id,count(a,"used"),count(b,"used"),balances[r.pool]),active:r.active,image:r.image||""};
   }));
-  const products=manage&&inventory?await inventory.catalog():[];
-  return {month,balances,products,rewards:rewards.sort((a,b)=>a.cost-b.cost||a.name.localeCompare(b.name,"th"))};
+  return {month,balances,products:[],rewards:rewards.sort(sort)};
  }
  async function save(uid,d){
   const r=rewardInput(d),id=d.rewardId?idOf(d):randomBytes(16).toString("hex"),ref=catalog.doc(id);
@@ -63,7 +81,7 @@ function buildRewards({db,FieldValue,identity,now,inventory}){
    const old=await tx.get(ref);
    if(d.rewardId&&!old.exists)bad("ไม่พบรางวัล");
    const revision=count(old,"revision")+1;
-   tx.set(ref,{...r,revision,updatedAt:stamp(),updatedBy:uid});
+   tx.set(ref,{...r,image:r.image??data(old).image??"",revision,updatedAt:stamp(),updatedBy:uid});
    return {id};
   });
  }

@@ -8,12 +8,21 @@ before(async()=>{browser=await chromium.launch({headless:true});});
 after(async()=>{await browser?.close();});
 async function ui(capabilities={staff:true,admin:true},options={}){
  const context=await browser.newContext(),page=await context.newPage();
- const html=fs.readFileSync(path.join(__dirname,"../../secure-public/index.html"),"utf8").replace(/<script[\s\S]*?<\/script>/g,"").replace("</html>",'<script src="/app.js"></script></html>');
+ const html=fs.readFileSync(path.join(__dirname,"../../secure-public/index.html"),"utf8").replace(/<script[\s\S]*?<\/script>/g,tag=>options.lazyQrScripts&&/(qrcodejs|html5-qrcode)/.test(tag)?tag:"").replace("</html>",'<script src="/app.js"></script></html>');
  const code=fs.readFileSync(path.join(__dirname,"../../secure-public/app.js"),"utf8");
  const css=fs.readFileSync(path.join(__dirname,"../../secure-public/member.css"),"utf8");
  const banner=fs.readFileSync(path.join(__dirname,"../../secure-public/club-banner.svg"),"utf8");
+ const qrRequests=[];
  await context.route("**/*",async route=>{
   const url=new URL(route.request().url());
+  if(options.lazyQrScripts&&url.hostname==="cdnjs.cloudflare.com"&&url.pathname.endsWith("/qrcode.min.js")){
+   qrRequests.push("qr");
+   return route.fulfill({contentType:"application/javascript",body:'window.QRCode=function(el){el.append(document.createElement("canvas"));};'});
+  }
+  if(options.lazyQrScripts&&url.hostname==="unpkg.com"&&url.pathname.endsWith("/html5-qrcode.min.js")){
+   qrRequests.push("scanner");
+   return route.fulfill({contentType:"application/javascript",body:'window.Html5QrcodeScanner=function(){this.render=function(){document.getElementById("reader").textContent="Scanner ready";};};'});
+  }
   if(url.hostname==="liff.line.me")return route.fulfill({status:200,contentType:"text/html",body:"<html><body>LINE reopen test</body></html>"});
   if(url.hostname==="profile.line-scdn.net")return route.fulfill({status:200,contentType:"image/png",body:Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9ZkAAAAASUVORK5CYII=","base64")});
   if(url.origin!=="https://g2-member-test-api.onrender.com")return route.abort();
@@ -25,8 +34,10 @@ async function ui(capabilities={staff:true,admin:true},options={}){
   window.fixture={loginCalls:[],logoutCalls:0,calls:[],failManual:false,deny:false,redeemed:false,closed:false,reads:[],qrs:[]};
   window.G2_MEMBER_CONFIG={firebase:{projectId:"g2-member-test"},liffId:"TEST",backendUrl:location.origin};
   window.liff={init:async()=>{fixture.initQuery=location.search;},isLoggedIn:()=>!options.notLoggedIn,isInClient:()=>options.inClient!==false,logout:()=>{fixture.logoutCalls++;},login:data=>{fixture.loginCalls.push(data);},getIDToken:()=>"test-only-line-token",getProfile:async()=>{if(options.failLinePhoto)throw Error("profile not permitted");return {userId:options.wrongPhotoUser?"U"+"b".repeat(32):uid,pictureUrl:options.linePhoto||""};}};
-  window.QRCode=function(el,config){window.fixture.qrs.push(config);const canvas=document.createElement("canvas");canvas.width=config.width;canvas.height=config.height;el.append(canvas);};
-  window.Html5QrcodeScanner=function(){};
+  if(!options.lazyQrScripts){
+   window.QRCode=function(el,config){window.fixture.qrs.push(config);const canvas=document.createElement("canvas");canvas.width=config.width;canvas.height=config.height;el.append(canvas);};
+   window.Html5QrcodeScanner=function(){};
+  }
   if(options.fastReadTimeout){const native=window.setTimeout.bind(window);window.setTimeout=(fn,ms,...args)=>native(fn,ms===20000?40:ms,...args);}
   const q=(name,filters=[],cap=Infinity,cursor=null)=>({
    where(field,op,value){return q(name,[...filters,{field,op,value}],cap,cursor);},
@@ -82,7 +93,9 @@ async function ui(capabilities={staff:true,admin:true},options={}){
    if(name==="memberLineLogin")result={customToken:"test"};
    if(name==="memberSession")result={registered:true,active:true,capabilities,rewardsV2:options.rewardsV2===true};
    if(name==="memberRewardCatalog")result={balances:{monthly:5,carry:12},rewards:[{id:"water",name:"น้ำดื่ม 1 ขวด",pool:"monthly",cost:5,quota:10,remaining:3,personalRemaining:1,canRedeem:true},{id:"hour",name:"เล่นฟรี",pool:"carry",cost:20,quota:3,remaining:3,personalRemaining:1,canRedeem:false}]};
-   if(name==="memberRewardTicket")result={token:"a".repeat(48),cost:5,remaining:0};
+   if(name==="memberRewardCatalog"&&data.manage)result={rewards:[],products:[]};
+   if(name==="memberRewardSave")result={id:"f".repeat(32)};
+   if(name==="memberRewardTicket")result={token:"a".repeat(48),expiresAtMs:Date.now()+300000,cost:5,remaining:0};
    if(name==="memberPreviewMonth")result={monthId:data.month,state:f.closed?"closed":"open",top3:[{rank:1,nickname:"<img src=x onerror=alert(1)>",points:30}],shirtCount:1,discountCount:2,canClose:!f.closed};
    if(name==="memberCloseMonth"){f.closed=true;result={state:"closed"};}
    if(name==="memberRedeemReward"){result={duplicate:f.redeemed,type:"discount10",billRef:data.billRef};f.redeemed=true;}
@@ -92,7 +105,7 @@ async function ui(capabilities={staff:true,admin:true},options={}){
  await page.goto("https://g2-member-test-api.onrender.com/"+(options.query?"?"+options.query:""));
  if(options.loginError||options.notLoggedIn)await page.locator("#loginRecovery").waitFor({state:"visible"});
  else await page.locator("#status").filter({hasText:"เข้าสู่ระบบแล้ว"}).waitFor();
- return {page,close:()=>context.close()};
+ return {page,qrRequests,close:()=>context.close()};
 }
 test("Chromium: forged profile role cannot reveal staff or admin controls",async()=>{
  const h=await ui({staff:false,admin:false});try{assert.equal(await h.page.locator("#staff").isVisible(),false);assert.equal(await h.page.locator("#admin").isVisible(),false);}finally{await h.close();}
@@ -391,10 +404,81 @@ test("Chromium: active shop replaces ranking, labels wallets and issues a QR wit
   await h.page.locator("#nav-rewards").click();
   await h.page.getByText("น้ำดื่ม 1 ขวด").waitFor();
   assert.match(await h.page.locator("#rewardShop").innerText(),/เหลือ 3 จาก 10 สิทธิ์/);
+  assert.equal(await h.page.locator(".g2-carry-number strong").innerText(),"12");
+  assert.match(await h.page.locator(".g2-monthly-balance").innerText(),/แต้มรายเดือน 5 แต้ม/);
+  assert.equal(await h.page.locator(".g2-carry-progress").getAttribute("max"),"20");
   assert.equal(await h.page.getByRole("button",{name:"แต้มยังไม่พอ"}).isDisabled(),true);
   await h.page.getByRole("button",{name:"แลก",exact:true}).click();
-  await h.page.locator("#rewardShop canvas").waitFor();
+  await h.page.locator("#rewardTicketCode canvas").waitFor();
+  assert.equal(await h.page.locator("#rewardShop").isVisible(),false);
+  assert.equal(await h.page.locator("#memberNav").isVisible(),false);
   assert.equal(await h.page.evaluate(()=>fixture.qrs.at(-1).text),"g2shop:"+"a".repeat(48));
   assert.equal(await h.page.evaluate(()=>fixture.calls.some(c=>c.name==="memberRewardConfirm")),false);
+  await h.page.locator("#rewardTicketBack").click();
+  assert.equal(await h.page.locator("#rewardTicketScreen").isVisible(),false);
+  assert.equal(await h.page.locator("#rewardTicketCode canvas").count(),0);
+  assert.equal(await h.page.locator("#rewardShop").isVisible(),true);
+ }finally{await h.close();}
+});
+
+test("Chromium: approved theme follows all member tabs at mobile width",async()=>{
+ const h=await ui({staff:false,admin:false},{profileRole:"member",rewardsV2:true});try{
+  await h.page.setViewportSize({width:320,height:700});
+  const nav=h.page.locator("#memberNav");
+  const theme=()=>h.page.evaluate(()=>[getComputedStyle(document.body).backgroundColor,getComputedStyle(document.querySelector(".brand-header")).backgroundImage,getComputedStyle(document.querySelector("#memberNav")).backgroundColor]);
+  const base=await theme();
+  assert.equal(base[0],"rgb(245, 239, 228)");
+  assert.match(base[1],/linear-gradient/);
+  assert.equal(base[2],"rgb(250, 244, 232)");
+  assert.deepEqual(await nav.locator("button:visible").evaluateAll(buttons=>buttons.map(b=>b.id)),["nav-home","nav-rewards","nav-history","nav-qr"]);
+  for(const [tab,content] of [["rewards","#rewardShop"],["history","#historyTransactions"],["qr","#qr canvas"],["home",".profile-heading"]]){
+   await h.page.locator("#nav-"+tab).click();
+   await h.page.locator(content).waitFor({state:"visible"});
+   assert.deepEqual(await theme(),base);
+   assert.equal(await nav.locator('[aria-current="page"]').getAttribute("id"),"nav-"+tab);
+   assert.equal(await h.page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+  }
+ }finally{await h.close();}
+});
+
+test("Chromium: admin uploads and removes a reward photo and sees success without reloading the catalog",async()=>{
+ const h=await ui({staff:true,admin:true},{rewardsV2:true});
+ try{
+  await h.page.locator("#manageRewardShop").click();
+  const form=h.page.locator("#rewardShopAdmin form");
+  await form.getByLabel("ชื่อรางวัล",{exact:true}).fill("น้ำดื่ม G2");
+  await form.getByLabel("แต้มที่ใช้",{exact:true}).fill("5");
+  await form.getByLabel("โควตารวมต่อเดือน",{exact:true}).fill("10");
+  await form.getByLabel("โควตาต่อคนต่อเดือน",{exact:true}).fill("1");
+  await form.getByLabel("เปิดให้แลก",{exact:true}).check();
+  await form.getByLabel("รูปสินค้า (ไม่บังคับ)",{exact:true}).setInputFiles({
+   name:"reward.png",mimeType:"image/png",buffer:Buffer.from(await h.page.evaluate(()=>{const c=document.createElement("canvas");c.width=c.height=10;return c.toDataURL("image/png").split(",")[1];}),"base64")
+  });
+  await form.getByAltText("ตัวอย่างรูปสินค้า").waitFor({state:"visible"});
+  await form.getByRole("button",{name:"บันทึกรางวัล"}).click();
+  await form.getByText("บันทึกรางวัลแล้ว",{exact:true}).waitFor();
+  const first=await h.page.evaluate(()=>fixture.calls.filter(c=>c.name==="memberRewardSave").at(-1).data);
+  assert.match(first.image,/^data:image\/jpeg;base64,\/9j\//);
+  assert.equal(await form.getByLabel(/เลือกรางวัล/).inputValue(),"f".repeat(32));
+  await form.getByRole("button",{name:"ลบรูป"}).click();
+  await form.getByRole("button",{name:"บันทึกรางวัล"}).click();
+  await form.getByText("บันทึกรางวัลแล้ว",{exact:true}).waitFor();
+  const reads=await h.page.evaluate(()=>fixture.calls.filter(c=>c.name==="memberRewardCatalog").length);
+  assert.equal(reads,1);
+  assert.equal(await h.page.evaluate(()=>fixture.calls.filter(c=>c.name==="memberRewardSave").at(-1).data.image),"");
+ }finally{await h.close();}
+});
+
+test("Chromium: login and home do not load QR scripts; each tool loads when opened",async()=>{
+ const h=await ui({staff:true,admin:true},{lazyQrScripts:true});
+ try{
+  assert.deepEqual(h.qrRequests,[]);
+  await h.page.locator("#monthlyPoints").waitFor({state:"visible"});
+  await h.page.locator("#nav-qr").click();
+  await h.page.locator("#qr canvas").waitFor({state:"visible"});
+  assert.deepEqual(h.qrRequests,["qr"]);
+  await h.page.locator("#scan").click();
+  await h.page.getByText("Scanner ready",{exact:true}).waitFor();
+  assert.deepEqual(h.qrRequests,["qr","scanner"]);
  }finally{await h.close();}
 });

@@ -11,6 +11,10 @@ test("quota and per-member limits must be positive integers and consistent",()=>
  assert.equal(rewardInput(config).cost,5);
  assert.throws(()=>rewardInput({...config,perMember:11}),{code:"invalid-argument"});
  assert.throws(()=>rewardInput({...config,cost:"5"}),{code:"invalid-argument"});
+ assert.throws(()=>rewardInput({...config,image:"data:image/svg+xml;base64,AAAA"}),{code:"invalid-argument"});
+ assert.throws(()=>rewardInput({...config,image:"data:image/jpeg;base64,/9j/AAAAAA=="}),{code:"invalid-argument"});
+ assert.throws(()=>rewardInput({...config,image:"data:image/jpeg;base64,/9j/"+"A".repeat(32768)}),{code:"invalid-argument"});
+ assert.equal(rewardInput({...config,image:"data:image/jpeg;base64,/9j/4AAQSkZJRgD/2Q=="}).image,"data:image/jpeg;base64,/9j/4AAQSkZJRgD/2Q==");
 });
 
 test("last monthly reward is atomic and cannot debit another wallet or replay",{
@@ -31,7 +35,16 @@ test("last monthly reward is atomic and cannot debit another wallet or replay",{
  try{
   await Promise.all([a,b].flatMap(uid=>[db.collection("users").doc(uid).set({nickname:"ทดสอบ"}),w(uid,"2026-11").set({balance:5}),w(uid,"carry").set({balance:10})]));
   await assert.rejects(api.save(staff,config),{code:"permission-denied"});
-  const {id}=await api.save(owner,config);
+  const image="data:image/jpeg;base64,/9j/4AAQSkZJRgD/2Q==";
+  const {id}=await api.save(owner,{...config,image});
+  await api.save(owner,{...config,rewardId:id});
+  assert.equal((await api.list(a,{})).rewards.find(r=>r.id===id).image,image);
+  await assert.rejects(api.list(a,{manage:true}),{code:"permission-denied"});
+  const adminView=await api.list(owner,{manage:true});
+  assert.equal(adminView.rewards.find(r=>r.id===id).image,image);
+  assert.equal(adminView.balances,undefined);
+  await api.save(owner,{...config,rewardId:id,image:""});
+  assert.equal((await api.list(a,{})).rewards.find(r=>r.id===id).image,"");
   const one=await api.issue(a,{rewardId:id});
   const two=await api.issue(b,{rewardId:id});
   await assert.rejects(api.redeem(a,{token:one.token,confirm:true}),{code:"permission-denied"});

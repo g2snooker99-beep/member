@@ -5,7 +5,7 @@ let db,call,uid,pending=null,scanner=null,busy=false,currentView="home",currentA
 let loadedViews={},loadingViews={},memberProfile=null,historyVersion=0,historyState=null;
 let clubVersion=0,clubBoards=new Map(),clubStats=null,statsTask=null,linePhoto="",boardRowsShown=20,boardGeneration=0;
 let loginFailed=false,liffInitialized=false,rewardShopEnabled=false;
-const status=s=>{$("status").textContent=s;};
+const status=(s,error=false)=>{$("status").textContent=s;$("status").setAttribute("data-error",String(error));};
 const labels={top1:"เสื้อ Limited อันดับ 1",top2:"เสื้อ Limited อันดับ 2",top3:"เสื้อ Limited อันดับ 3",discount10:"ส่วนลด 10% ใช้ได้หนึ่งบิล"};
 const monthAt=d=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok",year:"numeric",month:"2-digit"}).format(d).slice(0,7);
 function row(parent,value){const p=document.createElement("p");p.textContent=value;$(parent).append(p);return p;}
@@ -23,14 +23,17 @@ function stamp(value){
 }
 function empty(parent,message){row(parent,message).className="empty-state";}
 function setView(view,scroll=true){
- if(!views.includes(view))return;currentView=view;
+ if(!views.includes(view))return;
+ closeRewardTicket(false);
+ currentView=view;
+ document.body.classList.toggle("g2-shop-view",view==="rewards"&&rewardShopEnabled&&memberProfile?.role==="member");
  for(const item of views){$("view-"+item).hidden=item!==view;$("nav-"+item).setAttribute?.("aria-current",item===view?"page":"false");}
  if(scroll)window.scrollTo?.({top:0,behavior:"auto"});
 }
 async function navigate(view){
  if(busy||!currentActive)return;setView(view);status("กำลังโหลดข้อมูล…");
  try{await loadView(view);if(currentView===view)status("อัปเดตข้อมูลแล้ว");}
- catch(e){if(currentView===view)status((e.message||"โหลดข้อมูลไม่ได้")+" · กดเมนูเดิมเพื่อลองใหม่");}
+ catch(e){if(currentView===view)status((e.message||"โหลดข้อมูลไม่ได้")+" · กดเมนูเดิมเพื่อลองใหม่",true);}
 }
 for(const view of views)$("nav-"+view).onclick=()=>navigate(view);
 $("showCard").onclick=()=>navigate("qr");$("showRewards").onclick=()=>navigate("rewards");
@@ -77,32 +80,129 @@ async function refresh(){
  void loadHomeClub();
  setView(currentView,false);await loadView(currentView);
 }
+let rewardTicketTimer, rewardTicketTrigger;
 const rewardPools={monthly:"แต้มรายเดือน",carry:"แต้มสะสม"};
+const scriptLoads=new Map();
+function loadOptionalScript(url,ready,label){
+ if(ready())return Promise.resolve();
+ if(scriptLoads.has(url))return scriptLoads.get(url);
+ const script=document.createElement("script");
+ script.src=url;script.async=true;
+ const loaded=new Promise((resolve,reject)=>{
+  const finish=(ok)=>{
+   clearTimeout(timer);script.onload=script.onerror=null;
+   if(ok){resolve();return;}
+   script.remove();scriptLoads.delete(url);reject(Error("โหลด"+label+"ไม่สำเร็จ กรุณาลองใหม่"));
+  };
+  const timer=setTimeout(()=>finish(false),12000);
+  script.onload=()=>finish(ready());script.onerror=()=>finish(false);
+ });
+ scriptLoads.set(url,loaded);document.head.append(script);
+ return loaded;
+}
+const loadQr=()=>loadOptionalScript("https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js",()=>typeof QRCode==="function","ตัวสร้าง QR");
+const loadScanner=()=>loadOptionalScript("https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js",()=>typeof Html5QrcodeScanner==="function","ตัวสแกน QR");
 const shopButton=(label,fn,style="primary")=>{
  const b=node("button",label,style);b.type="button";b.onclick=fn;return b;
 };
+function rewardIcon(name){
+ if(/น้ำดื่ม|น้ำเปล่า|เครื่องดื่ม|water/i.test(name))return "water";
+ if(/ส่วนลด|%|discount/i.test(name))return "tag";
+ if(/เล่นฟรี|ชั่วโมง|เวลาเล่น/i.test(name))return "balls";
+ return "gift";
+}
+function closeRewardTicket(restoreFocus){
+ const screen=$("rewardTicketScreen");
+ if(!screen||screen.hidden)return;
+ clearTimeout(rewardTicketTimer);
+ screen.hidden=true;
+ $("rewardTicketCode").replaceChildren();
+ document.body.classList.remove("g2-ticket-open");
+ const trigger=rewardTicketTrigger;rewardTicketTrigger=null;
+ if(restoreFocus&&trigger?.isConnected)trigger.focus();
+}
+$("rewardTicketBack").onclick=()=>closeRewardTicket(true);
+function openRewardTicket(t,r,trigger){
+ const code=$("rewardTicketCode");
+ if(!/^[a-f0-9]{48}$/.test(t.token||""))throw Error("เปิด QR ไม่สำเร็จ กรุณาลองใหม่");
+ const now=Date.now(), expiry=Number(t.expiresAtMs);
+ if(!Number.isFinite(expiry)||expiry<=now)throw Error("QR หมดอายุ กรุณากดแลกใหม่");
+ code.replaceChildren();
+ new QRCode(code,{text:"g2shop:"+t.token,width:200,height:200,colorDark:"#111915",colorLight:"#ffffff"});
+ $("rewardTicketName").textContent=t.name||r.name;
+ $("rewardTicketIcon").dataset.icon=rewardIcon(t.name||r.name);
+ const pool=rewardPools[t.pool||r.pool]||"แต้ม";
+ $("rewardTicketDetails").textContent="ใช้ "+t.cost+" "+pool+" · หลังยืนยันเหลือ "+t.remaining+" แต้ม";
+ $("rewardTicketValidity").textContent="ให้พนักงานสแกนภายใน 5 นาที";
+ code.hidden=false;
+ rewardTicketTrigger=trigger;
+ document.body.classList.add("g2-ticket-open");
+ $("rewardTicketScreen").hidden=false;
+ window.scrollTo({top:0,behavior:"auto"});
+ $("rewardTicketHeading").focus();
+ rewardTicketTimer=setTimeout(()=>{
+  code.replaceChildren();code.hidden=true;
+  $("rewardTicketValidity").textContent="QR หมดอายุแล้ว กรุณากลับไปกดแลกใหม่";
+ },Math.min(expiry-now,300000));
+}
+function rewardPhotoSource(value){
+ return typeof value==="string"&&value.length<=32791&&/^data:image\/jpeg;base64,\/9j\/[A-Za-z0-9+/]*={0,2}$/.test(value)?value:"";
+}
+async function prepareRewardPhoto(file){
+ if(!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>10*1024*1024)
+  throw Error("เลือกรูป JPG, PNG หรือ WebP ขนาดไม่เกิน 10 MB");
+ const src=URL.createObjectURL(file),img=document.createElement("img");
+ try{
+  await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error("เปิดรูปไม่ได้ กรุณาเลือกรูปใหม่"));img.src=src;});
+  const max=Math.max(img.naturalWidth,img.naturalHeight);
+  if(!max||img.naturalWidth*img.naturalHeight>36_000_000)throw Error("รูปมีขนาดใหญ่เกินไป กรุณาลดขนาดรูป");
+  const canvas=document.createElement("canvas"),ctx=canvas.getContext("2d");
+  for(const [size,quality] of [[240,.84],[200,.72],[160,.62],[128,.55]]){
+   const scale=Math.min(1,size/max);
+   canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));
+   ctx.fillStyle="#fffaf1";ctx.fillRect(0,0,canvas.width,canvas.height);
+   ctx.drawImage(img,0,0,canvas.width,canvas.height);
+   const photo=rewardPhotoSource(canvas.toDataURL("image/jpeg",quality));
+   if(photo)return photo;
+  }
+  throw Error("ย่อรูปไม่สำเร็จ กรุณาเลือกรูปใหม่");
+ }finally{URL.revokeObjectURL(src);}
+}
 async function renderRewardShop(version){
  const root=$("rewardShop");
  const result=await call("memberRewardCatalog",{});
  if(version!==profileVersion||result?.enabled===false||!result?.balances)return;
  root.hidden=false;root.replaceChildren();
- const score=node("section","","points-card");
- score.append(node("h3","แต้มที่ใช้แลกได้"),node("p",rewardPools.carry+" "+result.balances.carry+" แต้ม"),node("p",rewardPools.monthly+" "+result.balances.monthly+" แต้ม · หมดสิ้นเดือน"));
+ const score=node("section","","points-card g2-rewards-balance");
+ score.append(node("h3","แต้มที่ใช้แลกได้"));
+ const carry=result.balances.carry, monthly=result.balances.monthly;
+ const scoreLine=node("p","","g2-carry-number");
+ scoreLine.append(node("strong",String(carry)),node("span","แต้มสะสม"));
+ score.append(scoreLine);
+ const next=result.rewards.filter(r=>r.pool==="carry"&&r.cost>carry&&r.remaining>0&&r.personalRemaining!==0).sort((a,b)=>a.cost-b.cost)[0];
+ if(next){
+  const progress=node("progress","","g2-carry-progress");
+  progress.max=next.cost;progress.value=carry;progress.setAttribute("aria-label","ความคืบหน้าเพื่อแลก "+next.name);
+  score.append(progress,node("p","อีก "+(next.cost-carry)+" แต้ม แลก "+next.name,"g2-carry-next"));
+ }
+ score.append(node("p","แต้มรายเดือน "+monthly+" แต้ม · หมดสิ้นเดือน","g2-monthly-balance"));
  root.append(score);
  if(!result.rewards.length)root.append(node("p","ยังไม่มีรางวัลให้แลก","muted"));
  for(const r of result.rewards){
-  const box=node("article","","surface reward-card");
-  box.append(node("h3",r.name),node("p",r.cost+" "+rewardPools[r.pool]+" · เหลือ "+r.remaining+" จาก "+r.quota+" สิทธิ์","muted"));
-  const qr=node("div","","reward-code");qr.hidden=true;
+  const box=node("article","","surface reward-card g2-shop-reward");
+  const icon=node("span","","g2-r-icon");icon.dataset.icon=rewardIcon(r.name);icon.setAttribute("aria-hidden","true");
+  const photo=rewardPhotoSource(r.image);
+  if(photo){const img=node("img","","g2-reward-photo");img.alt="";img.loading="lazy";img.onerror=()=>img.remove();img.src=photo;icon.append(img);}
+  const info=node("div","","g2-r-info");
+  info.append(node("h3",r.name),node("p",r.cost+" "+rewardPools[r.pool],"g2-r-cost"),node("p","เหลือ "+r.remaining+" จาก "+r.quota+" สิทธิ์","muted"));
   const button=shopButton(r.remaining===0?"สิทธิ์เดือนนี้เต็มแล้ว":r.personalRemaining===0?"ใช้สิทธิ์ครบแล้ว":r.canRedeem?"แลก":"แต้มยังไม่พอ",()=>action(async()=>{
-   if(!qr.hidden){qr.hidden=true;button.textContent="แลก";return;}
+   await loadQr();
    const t=await call("memberRewardTicket",{rewardId:r.id});
-   qr.replaceChildren(node("p","ใช้ "+t.cost+" แต้ม · หลังยืนยันเหลือ "+t.remaining+" แต้ม"),node("p","ให้พนักงานสแกนภายใน 5 นาที แต้มจะถูกหักเมื่อยืนยัน","muted"));
-   const code=node("div","");qr.append(code);new QRCode(code,{text:"g2shop:"+t.token,width:200,height:200});
-   qr.hidden=false;button.textContent="ซ่อน QR";
+   if(version===profileVersion&&currentView==="rewards")openRewardTicket(t,r,button);
+   return "แสดง QR ให้พนักงาน";
   }));
   button.disabled=!r.canRedeem;
-  box.append(button,qr);root.append(box);
+  box.append(icon,info,button);root.append(box);
  }
 }
 async function showShopScan(token){
@@ -119,8 +219,8 @@ async function showShopAdmin(){
  const root=$("rewardShopAdmin"),d=await call("memberRewardCatalog",{manage:true});
  root.hidden=false;root.replaceChildren();
  if(!d?.rewards){root.append(node("p","ระบบแลกรางวัลยังไม่เปิด"));return;}
- const form=node("form",""),chosen=node("select","");
- function bind(label,input){const wrapped=node("label",label);wrapped.append(input);form.append(wrapped);}
+ const form=node("form",""),fieldsGroup=node("fieldset","","g2-reward-editor-fields"),chosen=node("select","");
+ function bind(label,input){const wrapped=node("label",label);wrapped.append(input);fieldsGroup.append(wrapped);}
  function input(type){const v=node("input","");v.type=type;return v;}
  function option(value,label){const o=node("option",label);o.value=value;return o;}
  chosen.append(option("","เพิ่มรางวัลใหม่"),...d.rewards.map(r=>option(r.id,r.name)));bind("เลือกรางวัล",chosen);
@@ -133,17 +233,56 @@ async function showShopAdmin(){
  const qty=input("number");qty.min=1;qty.max=100;bind("ตัดจำนวนต่อสิทธิ์",qty);
  const syncProduct=()=>{qty.disabled=!product.value;qty.required=!!product.value;if(!product.value)qty.value="";else if(!qty.value)qty.value="1";};
  product.onchange=syncProduct;
+ const file=input("file");file.accept="image/jpeg,image/png,image/webp";bind("รูปสินค้า (ไม่บังคับ)",file);
+ const photoPreview=node("img","","g2-reward-photo-preview");photoPreview.alt="ตัวอย่างรูปสินค้า";photoPreview.hidden=true;
+ const photoNote=node("p","","muted");photoNote.setAttribute("aria-live","polite");
+ const removePhoto=shopButton("ลบรูป",null,"secondary");removePhoto.hidden=true;
+ fieldsGroup.append(photoPreview,removePhoto,photoNote);
  const active=input("checkbox");bind("เปิดให้แลก",active);
+ const submit=shopButton("บันทึกรางวัล",null);submit.type="submit";fieldsGroup.append(submit);
+ const saveNote=node("p","","g2-reward-save-note");saveNote.setAttribute("role","status");
+ form.append(fieldsGroup,saveNote);
+ let savedImage="",selectedImage="",imageSequence=0,imagePending=false;
+ function showPhoto(){
+  photoPreview.hidden=!selectedImage;removePhoto.hidden=!selectedImage;
+  if(selectedImage)photoPreview.src=selectedImage;else photoPreview.removeAttribute("src");
+ }
+ file.onchange=async()=>{
+  const next=file.files?.[0];
+  if(!next)return;
+  const sequence=++imageSequence;
+  imagePending=true;submit.disabled=true;photoNote.textContent="กำลังเตรียมรูป…";
+  try{
+   const photo=await prepareRewardPhoto(next);
+   if(sequence===imageSequence){selectedImage=photo;showPhoto();photoNote.textContent="พร้อมบันทึกรูป";}
+  }catch(e){if(sequence===imageSequence)photoNote.textContent=e.message||"เตรียมรูปไม่สำเร็จ";}
+  finally{if(sequence===imageSequence){file.value="";imagePending=false;submit.disabled=false;}}
+ };
+ removePhoto.onclick=()=>{
+  imageSequence++;imagePending=false;submit.disabled=false;file.value="";selectedImage="";
+  showPhoto();photoNote.textContent="รูปจะถูกลบเมื่อกดบันทึก";
+ };
  chosen.onchange=()=>{
   const r=d.rewards.find(r=>r.id===chosen.value);
   name.value=r?.name||"";pool.value=r?.pool||"carry";active.checked=r?.active??false;
   product.value=r?.productId?String(r.productId):"";qty.value=r?.inventoryQty||"";syncProduct();
   ["cost","quota","perMember"].forEach((k,i)=>{fields[i].value=r?.[k]??"";});
+  imageSequence++;imagePending=false;submit.disabled=false;file.value="";photoNote.textContent="";
+  savedImage=selectedImage=rewardPhotoSource(r?.image);showPhoto();saveNote.textContent="";
  };chosen.onchange();
- const submit=shopButton("บันทึกรางวัล",null);submit.type="submit";form.append(submit);
- form.onsubmit=e=>{e.preventDefault();void action(async()=>{
-  await call("memberRewardSave",{rewardId:chosen.value||undefined,name:name.value,pool:pool.value,cost:Number(fields[0].value),quota:Number(fields[1].value),perMember:Number(fields[2].value),active:active.checked,productId:Number(product.value),inventoryQty:product.value?Number(qty.value):0});
-  await showShopAdmin();return "บันทึกรางวัลแล้ว";
+ form.onsubmit=e=>{e.preventDefault();if(imagePending)return;void action(async()=>{
+  const draft={rewardId:chosen.value||undefined,name:name.value.trim(),pool:pool.value,cost:Number(fields[0].value),quota:Number(fields[1].value),perMember:Number(fields[2].value),active:active.checked,productId:Number(product.value),inventoryQty:product.value?Number(qty.value):0};
+  if(selectedImage!==savedImage)draft.image=selectedImage;
+  fieldsGroup.disabled=true;saveNote.textContent="กำลังบันทึกรางวัล…";
+  try{
+   const {id}=await call("memberRewardSave",draft);
+   const i=d.rewards.findIndex(r=>r.id===id),saved={...draft,id,image:selectedImage};
+   if(i<0){d.rewards.push(saved);chosen.append(option(id,saved.name));}
+   else{d.rewards[i]=saved;Array.from(chosen.options).find(o=>o.value===id).textContent=saved.name;}
+   chosen.value=id;savedImage=selectedImage;photoNote.textContent="";
+   saveNote.textContent="บันทึกรางวัลแล้ว";return "บันทึกรางวัลแล้ว";
+  }catch(e){saveNote.textContent=e.message||"บันทึกรางวัลไม่สำเร็จ";throw e;}
+  finally{fieldsGroup.disabled=false;}
  });};
  root.append(form);
 }
@@ -154,6 +293,7 @@ async function loadView(view){
  const version=profileVersion,historyGeneration=historyVersion,boardRequest=boardGeneration;
  const task=(async()=>{
   if(view==="qr"){
+   await loadQr();if(version!==profileVersion)return;
    $("qr").replaceChildren();new QRCode($("qr"),{text:uid,width:224,height:224,colorDark:"#111915",colorLight:"#ffffff"});
   }else if(view==="history"){
    if(!$("historyMonths").hidden)await renderMonthlyHistory();else await loadHistory();
@@ -172,7 +312,11 @@ async function loadView(view){
     card.append(node("span",state,"badge"),node("h3",labels[r.type]||"สิทธิ์รอตรวจสอบ"),node("p","จากคะแนนรอบ "+monthLabel(r.monthKey),"muted"));
     if(usable&&labels[r.type]){
      const button=node("button","แสดง QR ใช้สิทธิ์","primary"),box=node("div","","reward-code");button.type="button";box.hidden=true;let generated=false;
-     button.onclick=()=>{box.hidden=!box.hidden;button.textContent=box.hidden?"แสดง QR ใช้สิทธิ์":"ซ่อน QR สิทธิ์";if(!generated){new QRCode(box,{text:"g2reward:"+r.id,width:200,height:200,colorDark:"#111915",colorLight:"#ffffff"});generated=true;}};
+     button.onclick=()=>action(async()=>{
+      if(!generated){await loadQr();new QRCode(box,{text:"g2reward:"+r.id,width:200,height:200,colorDark:"#111915",colorLight:"#ffffff"});generated=true;}
+      box.hidden=!box.hidden;button.textContent=box.hidden?"แสดง QR ใช้สิทธิ์":"ซ่อน QR สิทธิ์";
+      return box.hidden?"ซ่อน QR แล้ว":"แสดง QR ให้พนักงาน";
+     });
      card.append(button,box);
     }
     $("rewards").append(card);
@@ -500,11 +644,12 @@ async function action(fn){
   if(busy)return;busy=true;
   const buttons=Array.from(document.querySelectorAll("button"));const enabled=buttons.filter(b=>!b.disabled);enabled.forEach(b=>b.disabled=true);
   try{status("กำลังดำเนินการ…");const message=await fn();status(typeof message==="string"?message:"สำเร็จ");}
-  catch(e){if(e.code==="permission-denied"||e.code==="unauthenticated"){$("staff").hidden=true;$("admin").hidden=true;}status(e.message||"เชื่อมต่อไม่ได้ กรุณาลองรายการเดิมอีกครั้ง");}
+  catch(e){if(e.code==="permission-denied"||e.code==="unauthenticated"){$("staff").hidden=true;$("admin").hidden=true;}status(e.message||"เชื่อมต่อไม่ได้ กรุณาลองรายการเดิมอีกครั้ง",true);}
   finally{busy=false;enabled.forEach(b=>b.disabled=false);}
 }
 $("manageRewardShop").onclick=()=>action(showShopAdmin);
 $("scan").onclick=()=>action(async()=>{
+  await loadScanner();
   if(scanner)await scanner.clear();
   scanner=new Html5QrcodeScanner("reader",{fps:10,qrbox:220},false);
   scanner.render(async value=>{
@@ -570,12 +715,14 @@ $("setStaff").onclick=()=>action(async()=>{await call("memberSetStaff",{userId:$
    if(!liff.isInClient?.()&&Date.now()-last>60000)await restartLineLogin();return;
   }
   const idToken=liff.getIDToken();if(!idToken)throw Error("LINE ต้องเปิดสิทธิ์ openid");
-  const login=await call("memberLineLogin",{idToken});await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.SESSION);
-  uid=(await firebase.auth().signInWithCustomToken(login.customToken)).user.uid;
+  const auth=firebase.auth();
+  const [login]=await Promise.all([call("memberLineLogin",{idToken}),auth.setPersistence(firebase.auth.Auth.Persistence.SESSION)]);
+  uid=(await auth.signInWithCustomToken(login.customToken)).user.uid;
+  status("กำลังโหลดข้อมูลสมาชิก…");
   sessionStorage.removeItem("g2LineLoginAttempt");
   const saved=sessionStorage.getItem("g2PendingManual");
   if(saved){try{const p=JSON.parse(saved);if(!p?.data?.requestId||!p.key)throw Error("Invalid pending record");pending=p;}catch{throw Error("ข้อมูลรายการค้างไม่สมบูรณ์ กรุณาให้แอดมินตรวจประวัติก่อนทำรายการใหม่");}}
   await refresh();
   void readLinePhoto();
   status(pending?"มีรายการเพิ่มแต้มค้าง กดส่งรายการค้างเดิม":"เข้าสู่ระบบแล้ว");
-}catch(e){if(authFailure(e)||["LINE_CHANNEL_MISMATCH","LINE_VERIFY_UNAVAILABLE"].includes(e.message))showLoginFailure(e);else status(e.message);}})();
+}catch(e){if(authFailure(e)||["LINE_CHANNEL_MISMATCH","LINE_VERIFY_UNAVAILABLE"].includes(e.message))showLoginFailure(e);else status(e.message||"เปิดหน้าสมาชิกไม่สำเร็จ กรุณาลองใหม่",true);}})();
