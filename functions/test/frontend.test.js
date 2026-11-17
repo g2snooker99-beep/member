@@ -3,7 +3,7 @@
 const {test}=require("node:test"),assert=require("node:assert/strict"),vm=require("node:vm"),fs=require("node:fs"),crypto=require("node:crypto"),path=require("node:path");
 const publicDir=path.join(__dirname,"../../secure-public"),html=fs.readFileSync(path.join(publicDir,"index.html"),"utf8"),code=fs.readFileSync(path.join(publicDir,"app.js"),"utf8");
 async function harness({profileRole="staff",capabilities={staff:true,admin:false},redeemDuplicate=false,confirmClose=true}={}){
-  const elements=new Map([...html.matchAll(/id="([^"]+)"/g)].map(m=>[m[1],{hidden:true,value:"",textContent:"",disabled:false,children:[],append(x){this.children.push(x);},replaceChildren(){this.children=[];}}]));
+  const elements=new Map([...html.matchAll(/id="([^"]+)"/g)].map(m=>[m[1],{hidden:true,value:"",textContent:"",disabled:false,children:[],setAttribute(){},append(x){this.children.push(x);},replaceChildren(){this.children=[];}}]));
   const uid="U"+"a".repeat(32),calls=[],storage=new Map();let failManual=false;
   const rows=[];const empty={forEach:fn=>rows.forEach(fn)};
   function query(){return {where(){return this;},orderBy(){return this;},limit(){return this;},get:async()=>empty,doc:()=>({get:async()=>({exists:true,data:()=>({nickname:"TEST",memberId:"TEST",role:profileRole,isActive:true,monthlyPoints:1,pointsMonth:"2026-10"})})})};}
