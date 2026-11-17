@@ -44,7 +44,7 @@ async function refresh(){
  $("memberNav").hidden=!session.registered||!session.active;currentActive=!!session.active;
  profileVersion++;historyVersion++;clubVersion++;boardGeneration++;historyState=null;loadedViews={};loadingViews={};clubBoards=new Map();clubStats=null;statsTask=null;
  rewardShopEnabled=session.rewardsV2===true;
- $("memberNav").classList.toggle("reward-nav",rewardShopEnabled);
+ $("memberNav").setAttribute("data-rewards",String(rewardShopEnabled));
  $("nav-board").hidden=rewardShopEnabled;
  $("homeRankCard").hidden=rewardShopEnabled;
  $("homePointsLabel").textContent=rewardShopEnabled?"แต้มที่ได้รับรอบนี้":"คะแนนสะสมของคุณ";

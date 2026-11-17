@@ -18,7 +18,7 @@ test("last monthly reward is atomic and cannot debit another wallet or replay",{
 },async()=>{
  const key=()=>randomBytes(16).toString("hex");
  const owner="U"+key(),staff="U"+key(),a="U"+key(),b="U"+key();
- const app=initializeApp({projectId:"demo-g2-member"},key());
+ const app=initializeApp({projectId:"demo-g2-rewards"},key());
  const db=getFirestore(app);
  let date=new Date("2026-11-30T16:56:00Z");
  const roles={[owner]:"admin",[staff]:"staff",[a]:"member",[b]:"member"};
@@ -32,7 +32,8 @@ test("last monthly reward is atomic and cannot debit another wallet or replay",{
   await Promise.all([a,b].flatMap(uid=>[db.collection("users").doc(uid).set({nickname:"ทดสอบ"}),w(uid,"2026-11").set({balance:5}),w(uid,"carry").set({balance:10})]));
   await assert.rejects(api.save(staff,config),{code:"permission-denied"});
   const {id}=await api.save(owner,config);
-  const [one,two]=await Promise.all([a,b].map(uid=>api.issue(uid,{rewardId:id})));
+  const one=await api.issue(a,{rewardId:id});
+  const two=await api.issue(b,{rewardId:id});
   await assert.rejects(api.redeem(a,{token:one.token,confirm:true}),{code:"permission-denied"});
   assert.equal((await api.redeem(staff,{token:one.token})).confirmed,false);
   const results=await Promise.allSettled([one,two].map(t=>api.redeem(staff,{token:t.token,confirm:true})));

@@ -67,7 +67,7 @@ function buildRewards({db,FieldValue,identity,now}){
    await identity(uid,["member"],tx);
    const r=data(await tx.get(catalog.doc(id)));
    if(!pools.includes(r.pool))fail("failed-precondition","ไม่พบรางวัล");
-   const [a,b,w]=await Promise.all([tx.get(stock(id,month)),tx.get(limit(id,month,uid)),tx.get(wallet(uid,r.pool,month))]);
+   const [a,b,w]=await tx.getAll(stock(id,month),limit(id,month,uid),wallet(uid,r.pool,month));
    const balance=count(w,"balance");
    check(r,count(a,"used"),count(b,"used"),balance);
    tx.create(ticket(token),{uid,rewardId:id,month,expiresAtMs,revision:r.revision,pool:r.pool,cost:r.cost,name:r.name,status:"pending",createdAt:stamp()});
@@ -85,7 +85,7 @@ function buildRewards({db,FieldValue,identity,now}){
    const r=data(await tx.get(catalog.doc(t.rewardId)));
    if(r.revision!==t.revision||r.pool!==t.pool||r.cost!==t.cost)fail("failed-precondition","รางวัลมีการเปลี่ยนแปลง กรุณาเปิด QR ใหม่");
    const a=stock(t.rewardId,t.month),b=limit(t.rewardId,t.month,t.uid),w=wallet(t.uid,t.pool,t.month);
-   const [sa,sb,sw]=await Promise.all([tx.get(a),tx.get(b),tx.get(w)]);
+   const [sa,sb,sw]=await tx.getAll(a,b,w);
    const used=count(sa,"used"),personal=count(sb,"used"),balance=count(sw,"balance");
    check(r,used,personal,balance);
    if(confirm){
