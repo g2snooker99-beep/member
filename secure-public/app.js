@@ -127,15 +127,22 @@ async function showShopAdmin(){
  const name=input("text");name.required=true;name.maxLength=80;bind("ชื่อรางวัล",name);
  const pool=node("select","");for(const [k,v] of Object.entries(rewardPools))pool.append(option(k,v));bind("ประเภทแต้ม",pool);
  const fields=["แต้มที่ใช้","โควตารวมต่อเดือน","โควตาต่อคนต่อเดือน"].map(label=>{const v=input("number");v.required=true;v.min=1;v.max=100000;bind(label,v);return v;});
+ const product=node("select","");product.append(option("","ไม่ตัดสต๊อก (เช่น ส่วนลดหรือเวลาเล่น)"));
+ for(const p of d.products||[])product.append(option(p.id,p.name+" · เหลือ "+p.stock));
+ bind("สินค้าในสต๊อก POS",product);
+ const qty=input("number");qty.min=1;qty.max=100;bind("ตัดจำนวนต่อสิทธิ์",qty);
+ const syncProduct=()=>{qty.disabled=!product.value;qty.required=!!product.value;if(!product.value)qty.value="";else if(!qty.value)qty.value="1";};
+ product.onchange=syncProduct;
  const active=input("checkbox");bind("เปิดให้แลก",active);
  chosen.onchange=()=>{
   const r=d.rewards.find(r=>r.id===chosen.value);
   name.value=r?.name||"";pool.value=r?.pool||"carry";active.checked=r?.active??false;
+  product.value=r?.productId?String(r.productId):"";qty.value=r?.inventoryQty||"";syncProduct();
   ["cost","quota","perMember"].forEach((k,i)=>{fields[i].value=r?.[k]??"";});
  };chosen.onchange();
  const submit=shopButton("บันทึกรางวัล",null);submit.type="submit";form.append(submit);
  form.onsubmit=e=>{e.preventDefault();void action(async()=>{
-  await call("memberRewardSave",{rewardId:chosen.value||undefined,name:name.value,pool:pool.value,cost:Number(fields[0].value),quota:Number(fields[1].value),perMember:Number(fields[2].value),active:active.checked});
+  await call("memberRewardSave",{rewardId:chosen.value||undefined,name:name.value,pool:pool.value,cost:Number(fields[0].value),quota:Number(fields[1].value),perMember:Number(fields[2].value),active:active.checked,productId:Number(product.value),inventoryQty:product.value?Number(qty.value):0});
   await showShopAdmin();return "บันทึกรางวัลแล้ว";
  });};
  root.append(form);

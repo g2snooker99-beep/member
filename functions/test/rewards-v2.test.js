@@ -50,3 +50,31 @@ test("last monthly reward is atomic and cannot debit another wallet or replay",{
   assert.equal(newMonth.rewards.find(r=>r.id===id).remaining,1);
  }finally{await deleteApp(app);}
 });
+
+test("a physical reward never debits without stock and replays only once",{
+ skip:!/^((localhost|127[.]0[.]0[.]1):[0-9]+)$/.test(process.env.FIRESTORE_EMULATOR_HOST||"")
+},async()=>{
+ const key=()=>randomBytes(16).toString("hex"),uid="U"+key();
+ const app=initializeApp({projectId:"demo-g2-rewards-stock"},key()),db=getFirestore(app);
+ const ref=db.collection("rewardWallets").doc(uid+"_carry");
+ let available=0,holds=0;
+ const inventory={catalog:async()=>[{id:12,name:"water"}],reserve:async()=>{
+  if(!available)throw Object.assign(Error("out of stock"),{code:"failed-precondition"});
+  available--;holds++;
+ },sync:async()=>{}};
+ const api=buildRewards({db,FieldValue,inventory,now:()=>new Date("2026-11-17T10:00:00Z"),identity:async()=>{
+  return {data:()=>({nickname:"test"})};
+ }});
+ try{
+  await ref.set({balance:5});
+  const {id}=await api.save("owner",{name:"น้ำ",pool:"carry",cost:5,quota:5,perMember:1,active:true,productId:12,inventoryQty:1});
+  const {token}=await api.issue(uid,{rewardId:id});
+  await assert.rejects(api.redeem("staff",{token,confirm:true}),/out of stock/);
+  assert.equal((await ref.get()).data().balance,5);
+  available=1;
+  assert.equal((await api.redeem("staff",{token,confirm:true})).confirmed,true);
+  assert.equal((await api.redeem("staff",{token,confirm:true})).alreadyUsed,true);
+  assert.equal(holds,1);
+  assert.equal((await ref.get()).data().balance,0);
+ }finally{await deleteApp(app);}
+});
