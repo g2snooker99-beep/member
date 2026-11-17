@@ -211,3 +211,6 @@ input::placeholder{color:#8b9485}
 #historyMore{margin-top:10px;width:100%}
 @media(max-width:400px){.profile-heading{flex-wrap:wrap}.profile-heading .badge{margin-left:100px;margin-top:-12px}.ranking-person{gap:6px}.ranking-avatar{width:28px;height:28px}.ranking-person strong{font-size:12px}.gap-chips{gap:6px}.gap-chip{font-size:11px}.rank-headline{font-size:26px}}
 @media(max-width:360px){.brand-header{margin-left:-14px;margin-right:-14px;padding-left:15px}.brand strong{font-size:13px}.brand small{font-size:8px}.quick-actions{grid-template-columns:1fr 1fr}.quick-actions button{font-size:12px;padding:12px 7px}.surface{padding:16px}.ranking-head,.ranking-row{grid-template-columns:26px minmax(0,1fr) 35px 40px;gap:5px}.ranking-head{font-size:9px}.ranking-avatar{width:25px;height:25px}.ranking-person strong{font-size:11px}.ranking-points{font-size:16px}.ranking-diff{font-size:12px}}
+
+.bottom-nav[data-rewards="true"]{grid-template-columns:repeat(4,minmax(0,1fr))}
+.bottom-nav [hidden]{display:none!important}

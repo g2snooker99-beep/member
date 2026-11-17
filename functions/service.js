@@ -3,8 +3,9 @@ const {createHash}=require("node:crypto");
 const UID=/^U[0-9a-f]{32}$/i, MONTH=/^\d{4}-(0[1-9]|1[0-2])$/;
 const monthAt=d=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok",year:"numeric",month:"2-digit"}).format(d).slice(0,7);
 function fail(code,message){const e=new Error(message);e.code=code;throw e;}
-function buildService({db,auth,FieldValue,FieldPath,channelId,ownerUid,verifyLine,sandboxOnly=false,now=()=>new Date()}){
+function buildService({db,auth,FieldValue,FieldPath,channelId,ownerUid,verifyLine,sandboxOnly=false,rewardsFirstMonth="",now=()=>new Date()}){
   const stamp=()=>FieldValue.serverTimestamp();
+  const rewardsMonth=m=>MONTH.test(rewardsFirstMonth)&&m>=rewardsFirstMonth;
   async function identity(uid,roles,tx){
     if(!UID.test(uid||""))fail("unauthenticated","LINE sign-in required");
     const ref=db.collection("users").doc(uid),s=tx?await tx.get(ref):await ref.get();
@@ -57,6 +58,7 @@ function buildService({db,auth,FieldValue,FieldPath,channelId,ownerUid,verifyLin
       const [r,m,g]=await Promise.all([tx.get(receipt),tx.get(ref),tx.get(gate)]);
       if(r.exists){if(r.data().fingerprint!==fingerprint)fail("already-exists","Conflicting retry");return {duplicate:true};}
       if(month!==monthAt(now()))fail("failed-precondition","Manual request month expired; no points recorded");
+      if(rewardsMonth(month))fail("failed-precondition","กรุณาใช้บิลจริงใน POS เพื่อบันทึกแต้ม");
       if(!g.exists||g.data().state!=="open")fail("failed-precondition","Month is not open");
       if(!m.exists||m.data().role!=="member"||m.data().isActive!==true)fail("permission-denied","Active member required");
       const p=m.data();
@@ -158,7 +160,7 @@ function buildService({db,auth,FieldValue,FieldPath,channelId,ownerUid,verifyLin
     }
     top3.forEach((p,i)=>p.rank=i+1);
     cursor=null;
-    for(;;){
+    while(!rewardsMonth(month)){
       let q=snapshots.orderBy(FieldPath.documentId()).limit(100);if(cursor)q=q.startAfter(cursor);
       const page=await q.get();if(page.empty)break;
       for(const row of page.docs){
