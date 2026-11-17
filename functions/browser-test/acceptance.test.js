@@ -391,6 +391,9 @@ test("Chromium: active shop replaces ranking, labels wallets and issues a QR wit
   await h.page.locator("#nav-rewards").click();
   await h.page.getByText("น้ำดื่ม 1 ขวด").waitFor();
   assert.match(await h.page.locator("#rewardShop").innerText(),/เหลือ 3 จาก 10 สิทธิ์/);
+  assert.equal(await h.page.locator(".g2-carry-number strong").innerText(),"12");
+  assert.match(await h.page.locator(".g2-monthly-balance").innerText(),/แต้มรายเดือน 5 แต้ม/);
+  assert.equal(await h.page.locator(".g2-carry-progress").getAttribute("max"),"20");
   assert.equal(await h.page.getByRole("button",{name:"แต้มยังไม่พอ"}).isDisabled(),true);
   await h.page.getByRole("button",{name:"แลก",exact:true}).click();
   await h.page.locator("#rewardTicketCode canvas").waitFor();
