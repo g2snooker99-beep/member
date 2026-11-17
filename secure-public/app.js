@@ -5,7 +5,7 @@ let db,call,uid,pending=null,scanner=null,busy=false,currentView="home",currentA
 let loadedViews={},loadingViews={},memberProfile=null,historyVersion=0,historyState=null;
 let clubVersion=0,clubBoards=new Map(),clubStats=null,statsTask=null,linePhoto="",boardRowsShown=20,boardGeneration=0;
 let loginFailed=false,liffInitialized=false,rewardShopEnabled=false;
-const status=s=>{$("status").textContent=s;};
+const status=(s,error=false)=>{$("status").textContent=s;$("status").setAttribute("data-error",String(error));};
 const labels={top1:"เสื้อ Limited อันดับ 1",top2:"เสื้อ Limited อันดับ 2",top3:"เสื้อ Limited อันดับ 3",discount10:"ส่วนลด 10% ใช้ได้หนึ่งบิล"};
 const monthAt=d=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Bangkok",year:"numeric",month:"2-digit"}).format(d).slice(0,7);
 function row(parent,value){const p=document.createElement("p");p.textContent=value;$(parent).append(p);return p;}
@@ -33,7 +33,7 @@ function setView(view,scroll=true){
 async function navigate(view){
  if(busy||!currentActive)return;setView(view);status("กำลังโหลดข้อมูล…");
  try{await loadView(view);if(currentView===view)status("อัปเดตข้อมูลแล้ว");}
- catch(e){if(currentView===view)status((e.message||"โหลดข้อมูลไม่ได้")+" · กดเมนูเดิมเพื่อลองใหม่");}
+ catch(e){if(currentView===view)status((e.message||"โหลดข้อมูลไม่ได้")+" · กดเมนูเดิมเพื่อลองใหม่",true);}
 }
 for(const view of views)$("nav-"+view).onclick=()=>navigate(view);
 $("showCard").onclick=()=>navigate("qr");$("showRewards").onclick=()=>navigate("rewards");
@@ -86,10 +86,10 @@ const shopButton=(label,fn,style="primary")=>{
  const b=node("button",label,style);b.type="button";b.onclick=fn;return b;
 };
 function rewardIcon(name){
- if(/น้ำดื่ม|น้ำเปล่า|เครื่องดื่ม|water/i.test(name))return "💧";
- if(/ส่วนลด|%|discount/i.test(name))return "％";
- if(/เล่นฟรี|ชั่วโมง|เวลาเล่น/i.test(name))return "🎱";
- return "✦";
+ if(/น้ำดื่ม|น้ำเปล่า|เครื่องดื่ม|water/i.test(name))return "water";
+ if(/ส่วนลด|%|discount/i.test(name))return "tag";
+ if(/เล่นฟรี|ชั่วโมง|เวลาเล่น/i.test(name))return "balls";
+ return "gift";
 }
 function closeRewardTicket(restoreFocus){
  const screen=$("rewardTicketScreen");
@@ -110,7 +110,7 @@ function openRewardTicket(t,r,trigger){
  code.replaceChildren();
  new QRCode(code,{text:"g2shop:"+t.token,width:200,height:200,colorDark:"#111915",colorLight:"#ffffff"});
  $("rewardTicketName").textContent=t.name||r.name;
- $("rewardTicketIcon").textContent=rewardIcon(t.name||r.name);
+ $("rewardTicketIcon").dataset.icon=rewardIcon(t.name||r.name);
  const pool=rewardPools[t.pool||r.pool]||"แต้ม";
  $("rewardTicketDetails").textContent="ใช้ "+t.cost+" "+pool+" · หลังยืนยันเหลือ "+t.remaining+" แต้ม";
  $("rewardTicketValidity").textContent="ให้พนักงานสแกนภายใน 5 นาที";
@@ -132,17 +132,22 @@ async function renderRewardShop(version){
  root.hidden=false;root.replaceChildren();
  const score=node("section","","points-card g2-rewards-balance");
  score.append(node("h3","แต้มที่ใช้แลกได้"));
- const wallets=node("div","","g2-wallets");
- for(const pool of ["carry","monthly"]){
-  const wallet=node("div","","g2-wallet");
-  wallet.append(node("span",rewardPools[pool]),node("strong",String(result.balances[pool])),node("small",pool==="monthly"?"หมดสิ้นเดือน":"แต้ม"));
-  wallets.append(wallet);
+ const carry=result.balances.carry, monthly=result.balances.monthly;
+ const scoreLine=node("p","","g2-carry-number");
+ scoreLine.append(node("strong",String(carry)),node("span","แต้มสะสม"));
+ score.append(scoreLine);
+ const next=result.rewards.filter(r=>r.pool==="carry"&&r.cost>carry&&r.remaining>0&&r.personalRemaining!==0).sort((a,b)=>a.cost-b.cost)[0];
+ if(next){
+  const progress=node("progress","","g2-carry-progress");
+  progress.max=next.cost;progress.value=carry;progress.setAttribute("aria-label","ความคืบหน้าเพื่อแลก "+next.name);
+  score.append(progress,node("p","อีก "+(next.cost-carry)+" แต้ม แลก "+next.name,"g2-carry-next"));
  }
- score.append(wallets);root.append(score);
+ score.append(node("p","แต้มรายเดือน "+monthly+" แต้ม · หมดสิ้นเดือน","g2-monthly-balance"));
+ root.append(score);
  if(!result.rewards.length)root.append(node("p","ยังไม่มีรางวัลให้แลก","muted"));
  for(const r of result.rewards){
   const box=node("article","","surface reward-card g2-shop-reward");
-  const icon=node("span",rewardIcon(r.name),"g2-r-icon");icon.setAttribute("aria-hidden","true");
+  const icon=node("span","","g2-r-icon");icon.dataset.icon=rewardIcon(r.name);icon.setAttribute("aria-hidden","true");
   const info=node("div","","g2-r-info");
   info.append(node("h3",r.name),node("p",r.cost+" "+rewardPools[r.pool],"g2-r-cost"),node("p","เหลือ "+r.remaining+" จาก "+r.quota+" สิทธิ์","muted"));
   const button=shopButton(r.remaining===0?"สิทธิ์เดือนนี้เต็มแล้ว":r.personalRemaining===0?"ใช้สิทธิ์ครบแล้ว":r.canRedeem?"แลก":"แต้มยังไม่พอ",()=>action(async()=>{
@@ -549,7 +554,7 @@ async function action(fn){
   if(busy)return;busy=true;
   const buttons=Array.from(document.querySelectorAll("button"));const enabled=buttons.filter(b=>!b.disabled);enabled.forEach(b=>b.disabled=true);
   try{status("กำลังดำเนินการ…");const message=await fn();status(typeof message==="string"?message:"สำเร็จ");}
-  catch(e){if(e.code==="permission-denied"||e.code==="unauthenticated"){$("staff").hidden=true;$("admin").hidden=true;}status(e.message||"เชื่อมต่อไม่ได้ กรุณาลองรายการเดิมอีกครั้ง");}
+  catch(e){if(e.code==="permission-denied"||e.code==="unauthenticated"){$("staff").hidden=true;$("admin").hidden=true;}status(e.message||"เชื่อมต่อไม่ได้ กรุณาลองรายการเดิมอีกครั้ง",true);}
   finally{busy=false;enabled.forEach(b=>b.disabled=false);}
 }
 $("manageRewardShop").onclick=()=>action(showShopAdmin);
